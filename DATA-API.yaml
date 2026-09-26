@@ -1,0 +1,123 @@
+schema_version: "1.0"
+solution: "Старт"
+base_url: "http://127.0.0.1:18086/api"
+authentication:
+  student:
+    setup:
+      method: POST
+      path: /auth/demo
+      body:
+        session_id: "technical-check-session"
+    token_json_path: access_token
+  admin:
+    setup:
+      method: POST
+      path: /admin/login
+      body:
+        password: "${ADMIN_PASSWORD}"
+    token_json_path: access_token
+checks:
+  - id: health
+    description: Backend is ready
+    method: GET
+    path: /health
+    role: anonymous
+    expected_status: 200
+    expected_response:
+      type: object
+      required: [status]
+  - id: demo_auth
+    description: Create an isolated demo student session
+    method: POST
+    path: /auth/demo
+    role: anonymous
+    body:
+      session_id: "technical-check-session"
+    expected_status: 200
+    expected_response:
+      type: object
+      required: [access_token, token_type]
+  - id: current_student
+    description: Return the authenticated student and measured profile
+    method: GET
+    path: /me
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: object
+      required: [id, name, profile]
+  - id: skills_catalog
+    description: Return the skill reference used by diagnostics and projects
+    method: GET
+    path: /skills
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: array
+  - id: recommendations
+    description: Return ranked open projects for the current student
+    method: GET
+    path: /projects/recommended
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: array
+      item_required: [id, title, score, organization]
+  - id: applications
+    description: List the current student's applications
+    method: GET
+    path: /me/applications
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: array
+  - id: portfolio
+    description: List confirmed project participation
+    method: GET
+    path: /me/portfolio
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: array
+  - id: portfolio_link
+    description: Idempotently create a public portfolio link
+    method: POST
+    path: /me/portfolio/link
+    role: student
+    headers:
+      Authorization: "Bearer ${student.access_token}"
+    expected_status: 200
+    expected_response:
+      type: object
+      required: [slug]
+  - id: admin_projects
+    description: Organizer can list all projects
+    method: GET
+    path: /admin/projects
+    role: admin
+    headers:
+      Authorization: "Bearer ${admin.access_token}"
+    expected_status: 200
+    expected_response:
+      type: array
+  - id: admin_metrics
+    description: Organizer can inspect the measurable pilot funnel
+    method: GET
+    path: /admin/metrics
+    role: admin
+    headers:
+      Authorization: "Bearer ${admin.access_token}"
+    expected_status: 200
+    expected_response:
+      type: object
+      required: [students, assessed_students, applications, accepted_applications]

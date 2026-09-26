@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface-2 text-slate-900 antialiased;
+    /* iOS Safari rounding + MAX in-app browser overscroll */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+  }
+
+  /* Every focusable element gets a visible ring — keyboard nav is a11y law */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+  }
+
+  .dark *:focus-visible {
+    @apply ring-offset-slate-950;
+  }
+
+  ::selection {
+    @apply bg-brand-200/60;
+  }
+
+  /* Native select styling reset */
+  select {
+    @apply appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5L6 8.5L10 4.5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-position: right 0.625rem center;
+    padding-right: 1.75rem;
+  }
+}
+
+@layer components {
+  .admin-input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900;
+  }
+
+  /* Skeleton with shimmer — replaces the flat `animate-pulse` blocks */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-slate-100;
+  }
+  .skeleton::after {
+    @apply absolute inset-0 -translate-x-full;
+    content: "";
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.75),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
+  }
+
+  /* Card — the single most used surface in the app */
+  .card {
+    @apply rounded-lg border border-slate-200/80 bg-white p-4 shadow-soft;
+  }
+  .dark .card {
+    @apply border-slate-700/80 bg-slate-900;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply rounded-lg bg-brand-gradient bg-[length:200%_200%] animate-gradient-pan
+      px-4 py-3 text-center text-sm font-semibold text-white shadow-glow
+      transition active:scale-[0.98] disabled:opacity-60 disabled:shadow-none;
+  }
+
+  /* Chip / toggle pill */
+  .chip {
+    @apply shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition
+      active:scale-95;
+  }
+  .chip[aria-pressed="false"] {
+    @apply border-slate-200 bg-white text-slate-600;
+  }
+  .dark .chip[aria-pressed="false"] {
+    @apply border-slate-700 bg-slate-900 text-slate-300;
+  }
+  .chip[aria-pressed="true"] {
+    @apply border-brand-500 bg-brand-50 text-brand-600;
+  }
+  .dark .chip[aria-pressed="true"] {
+    @apply border-brand-400 bg-brand-950 text-brand-200;
+  }
+
+  /* Screen container — mobile-first, centered, safe-area aware */
+  .screen {
+    @apply mx-auto flex min-h-full max-w-md flex-col gap-4 px-4 pb-24 pt-[max(1.5rem,env(safe-area-inset-top))];
+  }
+
+  /* Screen title */
+  .screen-title {
+    @apply text-xl font-bold tracking-tight;
+  }
+  .screen-subtitle {
+    @apply mt-1 text-sm text-slate-500;
+  }
+
+  .dark .screen-subtitle {
+    @apply text-slate-400;
+  }
+
+  .dark .bg-white { @apply bg-slate-900; }
+  .dark .bg-slate-50 { @apply bg-slate-900; }
+  .dark .bg-slate-100 { @apply bg-slate-800; }
+  .dark .border-slate-100 { @apply border-slate-800; }
+  .dark .border-slate-200 { @apply border-slate-700; }
+  .dark .text-slate-900 { @apply text-slate-100; }
+  .dark .text-slate-700 { @apply text-slate-200; }
+  .dark .text-slate-600 { @apply text-slate-300; }
+  .dark .text-slate-500 { @apply text-slate-400; }
+  .dark .text-brand-600 { @apply text-brand-300; }
+  .dark .text-brand-700,
+  .dark .text-brand-800 { @apply text-brand-200; }
+  .dark .border-brand-200 { @apply border-brand-800; }
+  .dark .bg-brand-50 { @apply bg-brand-950; }
+  .dark .bg-ok-50 { @apply bg-emerald-950/60; }
+  .dark .text-ok-700 { @apply text-emerald-300; }
+  .dark .bg-danger-50 { @apply bg-red-950/60; }
+  .dark .text-danger-700 { @apply text-red-300; }
+  .dark .bg-warn-50 { @apply bg-amber-950/60; }
+  .dark .text-warn-700 { @apply text-amber-300; }
+  .dark input,
+  .dark textarea,
+  .dark select {
+    @apply border-slate-700 bg-slate-900 text-slate-100;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Respect the bottom nav + iPhone home indicator */
+  .pb-safe {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+
+  /* Stagger list entrance animations — pair with `animate-fade-in-up` */
+  .stagger > * {
+    @apply animate-fade-in-up;
+  }
+  .stagger > *:nth-child(1) { @apply delay-0; }
+  .stagger > *:nth-child(2) { @apply delay-75; }
+  .stagger > *:nth-child(3) { @apply delay-100; }
+  .stagger > *:nth-child(4) { @apply delay-150; }
+  .stagger > *:nth-child(5) { @apply delay-200; }
+  .stagger > *:nth-child(6) { @apply delay-300; }
+
+  /* Clamp multi-line text without the layout jump */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Hide scrollbar for horizontal chip rows */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

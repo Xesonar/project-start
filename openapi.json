@@ -1,0 +1,2849 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Project Start API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/auth/max": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Max",
+        "operationId": "auth_max_auth_max_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaxAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/demo": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Demo",
+        "description": "Passwordless web entry point for judges/organizers without a MAX account.\n\nThe demo student is a real User row with a filled profile, so every screen\n(AI recommendations, applications, portfolio) works identically to a MAX\nlogin. Disabled unless DEMO_MODE=true.",
+        "operationId": "auth_demo_auth_demo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DemoAuthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Admin Login",
+        "operationId": "admin_login_admin_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Read Me",
+        "operationId": "read_me_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/me/profile": {
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update Profile",
+        "operationId": "update_profile_me_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/skills": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List Skills",
+        "operationId": "list_skills_skills_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Skills Skills Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/skills": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Read My Skills",
+        "operationId": "read_my_skills_me_skills_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserSkillRead"
+                  },
+                  "type": "array",
+                  "title": "Response Read My Skills Me Skills Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Set My Skills",
+        "operationId": "set_my_skills_me_skills_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/UserSkillIn"
+                },
+                "type": "array",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserSkillRead"
+                  },
+                  "type": "array",
+                  "title": "Response Set My Skills Me Skills Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "operationId": "list_projects_projects_get",
+        "parameters": [
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ProjectDifficulty"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ProjectFormat"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Format"
+            }
+          },
+          {
+            "name": "skill_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "newest",
+                "difficulty"
+              ],
+              "type": "string",
+              "default": "newest",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectListItem"
+                  },
+                  "title": "Response List Projects Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/recommended": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Recommended Projects",
+        "operationId": "list_recommended_projects_projects_recommended_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectRecommendation"
+                  },
+                  "type": "array",
+                  "title": "Response List Recommended Projects Projects Recommended Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project",
+        "operationId": "get_project_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/applications": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Create Application",
+        "operationId": "create_application_projects__project_id__applications_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/applications": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "List My Applications",
+        "operationId": "list_my_applications_me_applications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationRead"
+                  },
+                  "type": "array",
+                  "title": "Response List My Applications Me Applications Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/me/team": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Get My Team",
+        "operationId": "get_my_team_me_team_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/metrics": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Metrics",
+        "operationId": "get_metrics_admin_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMetricsRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/projects": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List All Projects",
+        "operationId": "list_all_projects_admin_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectListItem"
+                  },
+                  "type": "array",
+                  "title": "Response List All Projects Admin Projects Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Project",
+        "operationId": "create_project_admin_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/organizations": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Organizations",
+        "operationId": "list_organizations_admin_organizations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Organizations Admin Organizations Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/projects/{project_id}/applications": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Project Applications",
+        "operationId": "list_project_applications_admin_projects__project_id__applications_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminApplicationRead"
+                  },
+                  "title": "Response List Project Applications Admin Projects  Project Id  Applications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/applications/{application_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Application Status",
+        "operationId": "update_application_status_admin_applications__application_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Application Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminApplicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/projects/{project_id}/team": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Project Team",
+        "operationId": "get_project_team_admin_projects__project_id__team_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/projects/{project_id}/complete": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Complete Project",
+        "operationId": "complete_project_admin_projects__project_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/projects/{project_id}/finalize": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Finalize Project",
+        "description": "Atomically save the result, confirmations and completed state.\n\nThe older two-step endpoints remain available for API compatibility, but\nthe admin UI uses this endpoint so a failed confirmation cannot leave a\ncompleted project without portfolio records.",
+        "operationId": "finalize_project_admin_projects__project_id__finalize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectFinalizeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/projects/{project_id}/confirmations": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Confirm Participation",
+        "operationId": "confirm_participation_admin_projects__project_id__confirmations_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ConfirmationCreate"
+                },
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfirmationRead"
+                  },
+                  "title": "Response Confirm Participation Admin Projects  Project Id  Confirmations Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/portfolio": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get My Portfolio",
+        "operationId": "get_my_portfolio_me_portfolio_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortfolioItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get My Portfolio Me Portfolio Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/me/portfolio/link": {
+      "post": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Create My Portfolio Link",
+        "description": "Turns the student's confirmed experience into a shareable public page.\n\nDeliberately explicit: nothing is public until the student asks for a\nlink. Calling it again returns the same slug.",
+        "operationId": "create_my_portfolio_link_me_portfolio_link_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioLinkResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/p/{slug}": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get Public Portfolio",
+        "description": "Public portfolio — no auth, no contact details, recruiter-friendly.",
+        "operationId": "get_public_portfolio_p__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bot/webhook": {
+      "post": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Bot Webhook",
+        "operationId": "bot_webhook_bot_webhook_post",
+        "parameters": [
+          {
+            "name": "x-max-bot-api-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Bot-Api-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Bot Webhook Bot Webhook Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminApplicationRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "project_role": {
+            "$ref": "#/components/schemas/ProjectRoleRead"
+          },
+          "user": {
+            "$ref": "#/components/schemas/ApplicantRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "message",
+          "created_at",
+          "project_role",
+          "user"
+        ],
+        "title": "AdminApplicationRead"
+      },
+      "AdminLoginRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "AdminLoginRequest"
+      },
+      "AdminMetricsRead": {
+        "properties": {
+          "students": {
+            "type": "integer",
+            "title": "Students"
+          },
+          "assessed_students": {
+            "type": "integer",
+            "title": "Assessed Students"
+          },
+          "applications": {
+            "type": "integer",
+            "title": "Applications"
+          },
+          "accepted_applications": {
+            "type": "integer",
+            "title": "Accepted Applications"
+          },
+          "completed_projects": {
+            "type": "integer",
+            "title": "Completed Projects"
+          },
+          "confirmed_participations": {
+            "type": "integer",
+            "title": "Confirmed Participations"
+          },
+          "assessment_rate": {
+            "type": "number",
+            "title": "Assessment Rate"
+          },
+          "acceptance_rate": {
+            "type": "number",
+            "title": "Acceptance Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "students",
+          "assessed_students",
+          "applications",
+          "accepted_applications",
+          "completed_projects",
+          "confirmed_participations",
+          "assessment_rate",
+          "acceptance_rate"
+        ],
+        "title": "AdminMetricsRead"
+      },
+      "ApplicantRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar_url",
+          "profile"
+        ],
+        "title": "ApplicantRead"
+      },
+      "ApplicationCreate": {
+        "properties": {
+          "project_role_id": {
+            "type": "integer",
+            "title": "Project Role Id"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_role_id"
+        ],
+        "title": "ApplicationCreate"
+      },
+      "ApplicationRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectListItem"
+          },
+          "project_role": {
+            "$ref": "#/components/schemas/ProjectRoleRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "message",
+          "created_at",
+          "project",
+          "project_role"
+        ],
+        "title": "ApplicationRead"
+      },
+      "ApplicationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "rejected"
+        ],
+        "title": "ApplicationStatus"
+      },
+      "ApplicationStatusUpdate": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ApplicationStatusUpdate"
+      },
+      "ConfirmationCreate": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Role"
+          },
+          "contribution": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "title": "ConfirmationCreate"
+      },
+      "ConfirmationRead": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "contribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution"
+          },
+          "confirmed_by": {
+            "type": "string",
+            "title": "Confirmed By"
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Confirmed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "contribution",
+          "confirmed_by",
+          "confirmed_at"
+        ],
+        "title": "ConfirmationRead"
+      },
+      "DemoAuthRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Session Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "DemoAuthRequest"
+      },
+      "ExperienceLevel": {
+        "type": "string",
+        "enum": [
+          "beginner",
+          "intermediate",
+          "advanced"
+        ],
+        "title": "ExperienceLevel"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MaxAuthRequest": {
+        "properties": {
+          "init_data": {
+            "type": "string",
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Init Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "init_data"
+        ],
+        "title": "MaxAuthRequest"
+      },
+      "OrganizationRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "type",
+          "verified"
+        ],
+        "title": "OrganizationRead"
+      },
+      "PortfolioItem": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectListItem"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectResultRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmation": {
+            "$ref": "#/components/schemas/ConfirmationRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "result",
+          "confirmation"
+        ],
+        "title": "PortfolioItem"
+      },
+      "PortfolioLinkResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug"
+        ],
+        "title": "PortfolioLinkResponse"
+      },
+      "PortfolioPublic": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "specialty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialty"
+          },
+          "experience_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Level"
+          },
+          "preferred_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Role"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillPublic"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPublicItem"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PortfolioPublic",
+        "description": "Everything a recruiter/teacher sees on /p/<slug>. No contacts."
+      },
+      "PortfolioPublicItem": {
+        "properties": {
+          "project_title": {
+            "type": "string",
+            "title": "Project Title"
+          },
+          "organization": {
+            "type": "string",
+            "title": "Organization"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "contribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectResultRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Confirmed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_title",
+          "organization",
+          "role",
+          "contribution",
+          "result",
+          "confirmed_at"
+        ],
+        "title": "PortfolioPublicItem"
+      },
+      "ProfileRead": {
+        "properties": {
+          "university": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "University"
+          },
+          "course": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course"
+          },
+          "specialty": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialty"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "experience_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperienceLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "portfolio_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Url"
+          },
+          "github_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "preferred_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Role"
+          }
+        },
+        "type": "object",
+        "title": "ProfileRead"
+      },
+      "ProfileUpdate": {
+        "properties": {
+          "university": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "University"
+          },
+          "course": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course"
+          },
+          "specialty": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialty"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "experience_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperienceLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "portfolio_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Url"
+          },
+          "github_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "preferred_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Role"
+          }
+        },
+        "type": "object",
+        "title": "ProfileUpdate"
+      },
+      "ProjectCompleteRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 3,
+            "title": "Description"
+          },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "ProjectCompleteRequest"
+      },
+      "ProjectCreate": {
+        "properties": {
+          "organization_id": {
+            "type": "integer",
+            "title": "Organization Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 10,
+            "title": "Description"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/ProjectDifficulty"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "open"
+            ],
+            "title": "Status",
+            "default": "open"
+          },
+          "deadline": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Deadline"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProjectFormat"
+          },
+          "participant_limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Participant Limit"
+          },
+          "expected_result": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 3,
+            "title": "Expected Result"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectRoleCreate"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Roles"
+          },
+          "required_skills": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectSkillCreate"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Required Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "organization_id",
+          "title",
+          "description",
+          "difficulty",
+          "deadline",
+          "format",
+          "participant_limit",
+          "expected_result",
+          "roles"
+        ],
+        "title": "ProjectCreate"
+      },
+      "ProjectDifficulty": {
+        "type": "string",
+        "enum": [
+          "beginner",
+          "intermediate",
+          "advanced"
+        ],
+        "title": "ProjectDifficulty"
+      },
+      "ProjectFinalizeRequest": {
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/ProjectCompleteRequest"
+          },
+          "confirmations": {
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationCreate"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Confirmations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result",
+          "confirmations"
+        ],
+        "title": "ProjectFinalizeRequest"
+      },
+      "ProjectFormat": {
+        "type": "string",
+        "enum": [
+          "online",
+          "offline",
+          "hybrid"
+        ],
+        "title": "ProjectFormat"
+      },
+      "ProjectListItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/ProjectDifficulty"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProjectFormat"
+          },
+          "deadline": {
+            "type": "string",
+            "title": "Deadline"
+          },
+          "participant_limit": {
+            "type": "integer",
+            "title": "Participant Limit"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/OrganizationRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "difficulty",
+          "status",
+          "format",
+          "deadline",
+          "participant_limit",
+          "organization"
+        ],
+        "title": "ProjectListItem"
+      },
+      "ProjectRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/ProjectDifficulty"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProjectFormat"
+          },
+          "deadline": {
+            "type": "string",
+            "title": "Deadline"
+          },
+          "participant_limit": {
+            "type": "integer",
+            "title": "Participant Limit"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/OrganizationRead"
+          },
+          "expected_result": {
+            "type": "string",
+            "title": "Expected Result"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectRoleRead"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "required_skills": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectSkillRead"
+            },
+            "type": "array",
+            "title": "Required Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "difficulty",
+          "status",
+          "format",
+          "deadline",
+          "participant_limit",
+          "organization",
+          "expected_result",
+          "roles",
+          "required_skills"
+        ],
+        "title": "ProjectRead"
+      },
+      "ProjectRecommendation": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/ProjectDifficulty"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProjectFormat"
+          },
+          "deadline": {
+            "type": "string",
+            "title": "Deadline"
+          },
+          "participant_limit": {
+            "type": "integer",
+            "title": "Participant Limit"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/OrganizationRead"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 0.0
+          },
+          "breakdown": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Breakdown"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "difficulty",
+          "status",
+          "format",
+          "deadline",
+          "participant_limit",
+          "organization"
+        ],
+        "title": "ProjectRecommendation"
+      },
+      "ProjectResultRead": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "description",
+          "result_url",
+          "completed_at"
+        ],
+        "title": "ProjectResultRead"
+      },
+      "ProjectRoleCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "slots": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Slots",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ProjectRoleCreate"
+      },
+      "ProjectRoleRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "slots": {
+            "type": "integer",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "slots"
+        ],
+        "title": "ProjectRoleRead"
+      },
+      "ProjectSkillCreate": {
+        "properties": {
+          "skill_id": {
+            "type": "integer",
+            "title": "Skill Id"
+          },
+          "required_level": {
+            "$ref": "#/components/schemas/SkillLevel",
+            "default": "beginner"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill_id"
+        ],
+        "title": "ProjectSkillCreate"
+      },
+      "ProjectSkillRead": {
+        "properties": {
+          "skill": {
+            "$ref": "#/components/schemas/SkillRead"
+          },
+          "required_level": {
+            "$ref": "#/components/schemas/SkillLevel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "required_level"
+        ],
+        "title": "ProjectSkillRead"
+      },
+      "ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "open",
+          "in_progress",
+          "completed"
+        ],
+        "title": "ProjectStatus"
+      },
+      "SkillLevel": {
+        "type": "string",
+        "enum": [
+          "beginner",
+          "intermediate",
+          "advanced"
+        ],
+        "title": "SkillLevel"
+      },
+      "SkillPublic": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "level"
+        ],
+        "title": "SkillPublic"
+      },
+      "SkillRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category"
+        ],
+        "title": "SkillRead"
+      },
+      "TeamMemberRead": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/TeamMemberUserRead"
+          },
+          "role_title": {
+            "type": "string",
+            "title": "Role Title"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joined At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role_title",
+          "joined_at"
+        ],
+        "title": "TeamMemberRead"
+      },
+      "TeamMemberUserRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar_url"
+        ],
+        "title": "TeamMemberUserRead"
+      },
+      "TeamRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectListItem"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberRead"
+            },
+            "type": "array",
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "project",
+          "members"
+        ],
+        "title": "TeamRead"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token"
+        ],
+        "title": "TokenResponse"
+      },
+      "UserRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar_url",
+          "role",
+          "profile"
+        ],
+        "title": "UserRead"
+      },
+      "UserSkillIn": {
+        "properties": {
+          "skill_id": {
+            "type": "integer",
+            "title": "Skill Id"
+          },
+          "level": {
+            "$ref": "#/components/schemas/SkillLevel"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill_id",
+          "level"
+        ],
+        "title": "UserSkillIn"
+      },
+      "UserSkillRead": {
+        "properties": {
+          "skill": {
+            "$ref": "#/components/schemas/SkillRead"
+          },
+          "level": {
+            "$ref": "#/components/schemas/SkillLevel"
+          },
+          "rating": {
+            "type": "integer",
+            "title": "Rating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "level",
+          "rating"
+        ],
+        "title": "UserSkillRead"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+# Standalone production compose for a shared VPS (not a -f overlay on top of
+# docker-compose.yml — deliberately duplicated rather than merged, since
+# compose's merge semantics for `ports` are easy to get subtly wrong and
+# this runs on a server with other unrelated services). Host ports are
+# loopback-only; a system nginx (managed outside this repo) reverse-proxies
+# a public subdomain to them — see docs/deployment.md.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-project_start}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-project_start}
+      POSTGRES_DB: ${POSTGRES_DB:-project_start}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-project_start}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file: .env
+    environment:
+      APP_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18085:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_TEAM_CHAT_URL: ${VITE_TEAM_CHAT_URL:-}
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18086:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  db_data:

@@ -1,0 +1,25 @@
+# env
+.env
+
+# python
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+backend/*.egg-info/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/playwright-report/
+frontend/test-results/
+
+# misc
+.DS_Store
+*.log
+frontend/tsconfig.tsbuildinfo
+tmp/
