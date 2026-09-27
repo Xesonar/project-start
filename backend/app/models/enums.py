@@ -43,3 +43,10 @@ class ApplicationStatus(str, enum.Enum):
     rejected = "rejected"
     withdrawn = "withdrawn"
     leave_requested = "leave_requested"
+
+
+class ProjectSubmissionStatus(str, enum.Enum):
+    submitted = "submitted"
+    revision_requested = "revision_requested"
+    approved = "approved"
+    rejected = "rejected"

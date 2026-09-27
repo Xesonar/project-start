@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -6,13 +8,18 @@ from app.bot.payload import encode
 from app.core.deps import require_admin
 from app.db.session import get_db
 from app.models.application import Application
-from app.models.enums import ApplicationStatus, ProjectStatus
+from app.models.enums import (
+    ApplicationStatus,
+    ProjectStatus,
+    ProjectSubmissionStatus,
+)
 from app.models.organization import Organization
 from app.models.profile import StudentProfile
 from app.models.project import Project, ProjectRole, ProjectSkill
 from app.models.skill import Skill
 from app.models.result import ParticipationConfirmation, ProjectResult
 from app.models.team import Team, TeamMember
+from app.models.submission import ProjectSubmission
 from app.models.user import User
 from app.schemas.admin import (
     AdminApplicationRead,
@@ -31,6 +38,7 @@ from app.schemas.portfolio import (
 )
 from app.schemas.project import OrganizationRead, ProjectCreate, ProjectRead, ProjectListItem
 from app.schemas.team import TeamRead
+from app.schemas.submission import AdminSubmissionRead, SubmissionReview
 from app.services import max_bot_client
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -197,6 +205,30 @@ def update_application_status(
 
     previous_status = application.status
     next_status = ApplicationStatus(payload.status)
+    if previous_status not in {
+        ApplicationStatus.pending,
+        ApplicationStatus.leave_requested,
+    }:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This application decision is already final",
+        )
+    project = db.scalar(
+        select(Project).where(Project.id == application.project_id).with_for_update()
+    )
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    if project.status == ProjectStatus.completed:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A completed project team cannot be changed",
+        )
+    if (
+        previous_status == ApplicationStatus.pending
+        and next_status == ApplicationStatus.accepted
+        and project.status != ProjectStatus.open
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Project is not recruiting")
     if next_status == ApplicationStatus.rejected and not payload.note:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -206,9 +238,21 @@ def update_application_status(
     application.decision_note = payload.note
 
     if application.status == ApplicationStatus.accepted:
-        project = db.scalar(
-            select(Project).where(Project.id == application.project_id).with_for_update()
-        )
+        if previous_status == ApplicationStatus.pending:
+            other_active_team = db.scalar(
+                select(Team.id)
+                .join(TeamMember, TeamMember.team_id == Team.id)
+                .where(
+                    TeamMember.user_id == application.user_id,
+                    Team.status == "active",
+                    Team.project_id != application.project_id,
+                )
+            )
+            if other_active_team is not None:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Student already belongs to another active project",
+                )
         accepted_for_role = db.scalar(
             select(func.count(Application.id)).where(
                 Application.id != application.id,
@@ -279,12 +323,39 @@ def update_application_status(
             other_application.status = ApplicationStatus.rejected
             other_application.decision_note = "Вы приняты на другую роль этого проекта."
 
+        # Pending applications elsewhere can no longer be accepted while this
+        # membership is active. Close them immediately instead of leaving the
+        # student and other organizers with misleading "under review" cards.
+        other_project_applications = list(
+            db.scalars(
+                select(Application).where(
+                    Application.user_id == application.user_id,
+                    Application.project_id != application.project_id,
+                    Application.status == ApplicationStatus.pending,
+                )
+            )
+        )
+        for other_application in other_project_applications:
+            other_application.status = ApplicationStatus.rejected
+            other_application.decision_note = "Вы уже приняты в другую активную команду."
+
         db.flush()
         member_count = db.scalar(
             select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
         ) or 0
         if member_count >= project.participant_limit:
             project.status = ProjectStatus.in_progress
+            remaining_applications = list(
+                db.scalars(
+                    select(Application).where(
+                        Application.project_id == project.id,
+                        Application.status == ApplicationStatus.pending,
+                    )
+                )
+            )
+            for remaining in remaining_applications:
+                remaining.status = ApplicationStatus.rejected
+                remaining.decision_note = "Команда проекта уже сформирована."
     else:
         project = db.get(Project, application.project_id)
         team = db.scalar(select(Team).where(Team.project_id == application.project_id))
@@ -361,6 +432,69 @@ def update_application_status(
     return db.scalar(_admin_application_query().where(Application.id == application_id))
 
 
+@router.get(
+    "/projects/{project_id}/submissions",
+    response_model=list[AdminSubmissionRead],
+)
+def list_project_submissions(
+    project_id: int, db: Session = Depends(get_db)
+) -> list[ProjectSubmission]:
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    return list(
+        db.scalars(
+            select(ProjectSubmission)
+            .where(ProjectSubmission.project_id == project_id)
+            .options(selectinload(ProjectSubmission.user))
+            .order_by(ProjectSubmission.submitted_at)
+        )
+    )
+
+
+@router.patch(
+    "/submissions/{submission_id}",
+    response_model=AdminSubmissionRead,
+)
+def review_project_submission(
+    submission_id: int,
+    payload: SubmissionReview,
+    db: Session = Depends(get_db),
+) -> ProjectSubmission:
+    submission = db.scalar(
+        select(ProjectSubmission)
+        .where(ProjectSubmission.id == submission_id)
+        .options(selectinload(ProjectSubmission.user), selectinload(ProjectSubmission.project))
+    )
+    if submission is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+    if submission.project.status == ProjectStatus.completed:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Completed project submissions are locked")
+    if submission.status != ProjectSubmissionStatus.submitted:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Submission is not awaiting review")
+    next_status = ProjectSubmissionStatus(payload.status)
+    if next_status != ProjectSubmissionStatus.approved and not payload.note:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A review note is required when work is not approved",
+        )
+    submission.status = next_status
+    submission.review_note = payload.note
+    submission.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(submission)
+
+    verdict = {
+        ProjectSubmissionStatus.approved: "Работа подтверждена и будет добавлена в портфолио после завершения проекта.",
+        ProjectSubmissionStatus.revision_requested: "Работу нужно доработать и отправить повторно.",
+        ProjectSubmissionStatus.rejected: "Работа не подтверждена.",
+    }[next_status]
+    text = f"Проект «{submission.project.title}»: {verdict}"
+    if payload.note:
+        text += f"\n\nКомментарий организатора: {payload.note}"
+    max_bot_client.send_message(user_id=submission.user.max_user_id, text=text)
+    return submission
+
+
 @router.post(
     "/applications/{application_id}/message",
     response_model=AdminMessageResult,
@@ -415,37 +549,18 @@ def get_project_team(project_id: int, db: Session = Depends(get_db)) -> Team:
     return team
 
 
-@router.post("/projects/{project_id}/complete", response_model=ProjectListItem)
+@router.post(
+    "/projects/{project_id}/complete",
+    response_model=ProjectListItem,
+    deprecated=True,
+    include_in_schema=False,
+)
 def complete_project(
     project_id: int, payload: ProjectCompleteRequest, db: Session = Depends(get_db)
 ) -> Project:
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-
-    project.status = ProjectStatus.completed
-    team = db.scalar(select(Team).where(Team.project_id == project_id))
-    if team is not None:
-        team.status = "completed"
-
-    result = db.scalar(select(ProjectResult).where(ProjectResult.project_id == project_id))
-    if result is None:
-        result = ProjectResult(project_id=project_id, **payload.model_dump())
-        db.add(result)
-    else:
-        for field, value in payload.model_dump().items():
-            setattr(result, field, value)
-
-    db.commit()
-
-    return db.scalar(
-        select(Project)
-        .where(Project.id == project_id)
-        .options(
-            selectinload(Project.organization),
-            selectinload(Project.roles),
-            selectinload(Project.required_skills).selectinload(ProjectSkill.skill),
-        )
+    raise HTTPException(
+        status.HTTP_410_GONE,
+        "Use the atomic finalize endpoint after every participant submission is approved",
     )
 
 
@@ -453,15 +568,12 @@ def complete_project(
 def finalize_project(
     project_id: int, payload: ProjectFinalizeRequest, db: Session = Depends(get_db)
 ) -> Project:
-    """Atomically save the result, confirmations and completed state.
-
-    The older two-step endpoints remain available for API compatibility, but
-    the admin UI uses this endpoint so a failed confirmation cannot leave a
-    completed project without portfolio records.
-    """
+    """Atomically save the result, verified contributions and completed state."""
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    if project.status == ProjectStatus.completed:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Project is already completed")
 
     pending_leave_requests = db.scalar(
         select(func.count(Application.id)).where(
@@ -482,15 +594,44 @@ def finalize_project(
     team = db.scalar(select(Team).where(Team.project_id == project_id))
     if team is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Project has no team")
+    if team.status != "active":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Project team is not active")
     team_user_ids = set(
         db.scalars(select(TeamMember.user_id).where(TeamMember.team_id == team.id))
     )
-    unknown_user_ids = sorted(set(user_ids) - team_user_ids)
-    if unknown_user_ids:
+    provided_user_ids = set(user_ids)
+    if provided_user_ids != team_user_ids:
+        missing_user_ids = sorted(team_user_ids - provided_user_ids)
+        unknown_user_ids = sorted(provided_user_ids - team_user_ids)
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Users are not project team members: {unknown_user_ids}",
+            f"Confirmation list must exactly match the team; missing={missing_user_ids}, unknown={unknown_user_ids}",
         )
+
+    submissions = list(
+        db.scalars(
+            select(ProjectSubmission).where(
+                ProjectSubmission.project_id == project_id,
+                ProjectSubmission.user_id.in_(team_user_ids),
+            )
+        )
+    )
+    submissions_by_user = {item.user_id: item for item in submissions}
+    unapproved_user_ids = sorted(
+        user_id
+        for user_id in team_user_ids
+        if user_id not in submissions_by_user
+        or submissions_by_user[user_id].status != ProjectSubmissionStatus.approved
+    )
+    if unapproved_user_ids:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Every team member must have approved work: {unapproved_user_ids}",
+        )
+    roles_by_user = {
+        member.user_id: member.role_title
+        for member in db.scalars(select(TeamMember).where(TeamMember.team_id == team.id))
+    }
 
     result = db.scalar(select(ProjectResult).where(ProjectResult.project_id == project_id))
     if result is None:
@@ -513,13 +654,13 @@ def finalize_project(
                     project_id=project_id,
                     user_id=item.user_id,
                     confirmed_by=project.organization.name,
-                    role=item.role,
-                    contribution=item.contribution,
+                    role=roles_by_user[item.user_id],
+                    contribution=submissions_by_user[item.user_id].summary,
                 )
             )
         else:
-            confirmation.role = item.role
-            confirmation.contribution = item.contribution
+            confirmation.role = roles_by_user[item.user_id]
+            confirmation.contribution = submissions_by_user[item.user_id].summary
 
     project.status = ProjectStatus.completed
     team.status = "completed"
@@ -536,63 +677,16 @@ def finalize_project(
     )
 
 
-@router.post("/projects/{project_id}/confirmations", response_model=list[ConfirmationRead])
+@router.post(
+    "/projects/{project_id}/confirmations",
+    response_model=list[ConfirmationRead],
+    deprecated=True,
+    include_in_schema=False,
+)
 def confirm_participation(
     project_id: int, payload: list[ConfirmationCreate], db: Session = Depends(get_db)
 ) -> list[ParticipationConfirmation]:
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-    if project.status != ProjectStatus.completed:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Project must be completed before participation can be confirmed",
-        )
-
-    user_ids = [item.user_id for item in payload]
-    if len(user_ids) != len(set(user_ids)):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Duplicate user ids")
-
-    team = db.scalar(select(Team).where(Team.project_id == project_id))
-    team_user_ids = (
-        set(
-            db.scalars(
-                select(TeamMember.user_id).where(TeamMember.team_id == team.id)
-            )
-        )
-        if team is not None
-        else set()
+    raise HTTPException(
+        status.HTTP_410_GONE,
+        "Participation is created only by the atomic finalize endpoint",
     )
-    unknown_user_ids = sorted(set(user_ids) - team_user_ids)
-    if unknown_user_ids:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Users are not project team members: {unknown_user_ids}",
-        )
-
-    confirmations = []
-    for item in payload:
-        confirmation = db.scalar(
-            select(ParticipationConfirmation).where(
-                ParticipationConfirmation.project_id == project_id,
-                ParticipationConfirmation.user_id == item.user_id,
-            )
-        )
-        if confirmation is None:
-            confirmation = ParticipationConfirmation(
-                project_id=project_id,
-                user_id=item.user_id,
-                confirmed_by=project.organization.name,
-                role=item.role,
-                contribution=item.contribution,
-            )
-            db.add(confirmation)
-        else:
-            confirmation.role = item.role
-            confirmation.contribution = item.contribution
-        confirmations.append(confirmation)
-
-    db.commit()
-    for confirmation in confirmations:
-        db.refresh(confirmation)
-    return confirmations

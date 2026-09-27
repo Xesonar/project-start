@@ -2,7 +2,20 @@ import { useEffect, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { getMyTeam, type Team } from "@/api/team";
+import {
+  getMyProjectSubmission,
+  submitProjectResult,
+  type ProjectSubmission,
+} from "@/api/submissions";
 import { getMaxWebApp } from "@/max/webapp";
+import { Link } from "react-router-dom";
+
+const SUBMISSION_LABELS: Record<ProjectSubmission["status"], string> = {
+  submitted: "На проверке",
+  revision_requested: "Нужна доработка",
+  approved: "Подтверждено",
+  rejected: "Не подтверждено",
+};
 
 function openTeamChat(url: string) {
   const webApp = getMaxWebApp();
@@ -17,13 +30,28 @@ export function TeamScreen() {
   const [team, setTeam] = useState<Team | null>(null);
   const [notInTeam, setNotInTeam] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<ProjectSubmission | null>(null);
+  const [summary, setSummary] = useState("");
+  const [resultUrl, setResultUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
     setError(null);
     setNotInTeam(false);
     setTeam(null);
     getMyTeam()
-      .then(setTeam)
+      .then(async (nextTeam) => {
+        setTeam(nextTeam);
+        try {
+          const nextSubmission = await getMyProjectSubmission(nextTeam.project.id);
+          setSubmission(nextSubmission);
+          setSummary(nextSubmission.summary);
+          setResultUrl(nextSubmission.result_url ?? "");
+        } catch (err) {
+          if (!(err instanceof ApiError && err.status === 404)) throw err;
+          setSubmission(null);
+        }
+      })
       .catch((err: unknown) => {
         if (err instanceof ApiError && err.status === 404) {
           setNotInTeam(true);
@@ -36,6 +64,23 @@ export function TeamScreen() {
   useEffect(() => {
     load();
   }, []);
+
+  const handleSubmit = async () => {
+    if (!team || summary.trim().length < 10) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const nextSubmission = await submitProjectResult(team.project.id, {
+        summary: summary.trim(),
+        result_url: resultUrl.trim() || null,
+      });
+      setSubmission(nextSubmission);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отправить результат");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="screen">
@@ -67,6 +112,11 @@ export function TeamScreen() {
           <div className="card">
             <p className="text-xs text-slate-400">{team.project.organization.name}</p>
             <h2 className="mt-1 text-sm font-semibold">{team.project.title}</h2>
+            {team.status === "completed" && (
+              <p className="mt-2 text-xs font-medium text-emerald-600">
+                Проект завершён, подтверждённый результат сохранён в портфолио.
+              </p>
+            )}
           </div>
 
           <div className="stagger flex flex-col gap-2">
@@ -89,6 +139,70 @@ export function TeamScreen() {
             >
               Открыть чат команды
             </button>
+          )}
+
+          {team.status === "completed" ? (
+            <Link to="/portfolio" className="btn-primary text-center">
+              Открыть портфолио
+            </Link>
+          ) : (
+            <section className="card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold">Сдать личный результат</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Опиши свой вклад. После проверки именно этот текст попадёт в портфолио.
+                  </p>
+                </div>
+                {submission && (
+                  <span className="rounded-full bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700">
+                    {SUBMISSION_LABELS[submission.status]}
+                  </span>
+                )}
+              </div>
+              {submission?.review_note && (
+                <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
+                  Комментарий организатора: {submission.review_note}
+                </p>
+              )}
+              <label className="mt-3 block text-xs font-medium text-slate-600">
+                Что ты сделал
+                <textarea
+                  value={summary}
+                  onChange={(event) => setSummary(event.target.value.slice(0, 3000))}
+                  rows={4}
+                  placeholder="Например: разработал API, настроил базу данных и написал тесты"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                />
+              </label>
+              <label className="mt-3 block text-xs font-medium text-slate-600">
+                Ссылка на результат (необязательно)
+                <input
+                  type="url"
+                  value={resultUrl}
+                  onChange={(event) => setResultUrl(event.target.value)}
+                  placeholder="https://github.com/..."
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={submitting || summary.trim().length < 10}
+                className="btn-primary mt-3 w-full disabled:opacity-50"
+              >
+                {submitting
+                  ? "Отправляем…"
+                  : submission
+                    ? "Отправить результат повторно"
+                    : "Отправить на проверку"}
+              </button>
+              {submission?.status === "approved" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Если изменишь результат, организатор должен будет подтвердить его заново.
+                </p>
+              )}
+            </section>
           )}
         </>
       )}

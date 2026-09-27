@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api import admin, applications, auth, bot_webhook, portfolio, projects, teams, users
+from app.api import admin, applications, auth, bot_webhook, portfolio, projects, submissions, teams, users
 from app.core.config import settings
 from app.db.session import get_db
 
@@ -25,6 +25,7 @@ app.include_router(applications.router)
 app.include_router(teams.router)
 app.include_router(admin.router)
 app.include_router(portfolio.router)
+app.include_router(submissions.router)
 app.include_router(bot_webhook.router)
 
 

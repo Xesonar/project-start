@@ -6,12 +6,15 @@ import {
   getProjectCommunication,
   listAdminProjects,
   listProjectApplications,
+  listProjectSubmissions,
   messageApplicationStudent,
+  reviewProjectSubmission,
   updateProjectCommunication,
   updateApplicationStatus,
   type AdminApplication,
 } from "@/api/admin";
 import type { ProjectListItem } from "@/api/projects";
+import type { AdminProjectSubmission } from "@/api/submissions";
 
 const STATUS_LABELS: Record<AdminApplication["status"], string> = {
   pending: "На рассмотрении",
@@ -29,6 +32,13 @@ const STATUS_STYLES: Record<AdminApplication["status"], string> = {
   leave_requested: "bg-violet-50 text-violet-700",
 };
 
+const SUBMISSION_STATUS_LABELS: Record<AdminProjectSubmission["status"], string> = {
+  submitted: "На проверке",
+  revision_requested: "Возвращена на доработку",
+  approved: "Подтверждена",
+  rejected: "Не подтверждена",
+};
+
 export function AdminProjectApplications() {
   const { id } = useParams<{ id: string }>();
   const [applications, setApplications] = useState<AdminApplication[] | null>(null);
@@ -38,7 +48,6 @@ export function AdminProjectApplications() {
   const [resultTitle, setResultTitle] = useState("");
   const [resultDescription, setResultDescription] = useState("");
   const [resultUrl, setResultUrl] = useState("");
-  const [contributions, setContributions] = useState<Record<number, string>>({});
   const [finishing, setFinishing] = useState(false);
   const [finishSuccess, setFinishSuccess] = useState(false);
   const [teamChatUrl, setTeamChatUrl] = useState("");
@@ -48,6 +57,9 @@ export function AdminProjectApplications() {
   const [messageDrafts, setMessageDrafts] = useState<Record<number, string>>({});
   const [sendingMessageId, setSendingMessageId] = useState<number | null>(null);
   const [messageStatuses, setMessageStatuses] = useState<Record<number, string>>({});
+  const [submissions, setSubmissions] = useState<AdminProjectSubmission[]>([]);
+  const [reviewDrafts, setReviewDrafts] = useState<Record<number, string>>({});
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState<number | null>(null);
 
   const load = () => {
     if (!id) return;
@@ -55,20 +67,13 @@ export function AdminProjectApplications() {
       listProjectApplications(Number(id)),
       listAdminProjects(),
       getProjectCommunication(Number(id)),
+      listProjectSubmissions(Number(id)),
     ])
-      .then(([nextApplications, projects, communication]) => {
+      .then(([nextApplications, projects, communication, nextSubmissions]) => {
         setApplications(nextApplications);
         setProject(projects.find((item) => item.id === Number(id)) ?? null);
         setTeamChatUrl(communication.team_chat_url ?? "");
-        setContributions((current) => {
-          const next = { ...current };
-          for (const application of nextApplications) {
-            if (application.status === "accepted" && next[application.user.id] === undefined) {
-              next[application.user.id] = `Участие в проекте в роли ${application.project_role.title}`;
-            }
-          }
-          return next;
-        });
+        setSubmissions(nextSubmissions);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка загрузки"));
   };
@@ -83,6 +88,12 @@ export function AdminProjectApplications() {
   const hasPendingLeaveRequest = (applications ?? []).some(
     (application) => application.status === "leave_requested",
   );
+  const submissionsByUser = new Map(submissions.map((submission) => [submission.user_id, submission]));
+  const allAcceptedWorkApproved =
+    acceptedApplications.length > 0 &&
+    acceptedApplications.every(
+      (application) => submissionsByUser.get(application.user.id)?.status === "approved",
+    );
 
   const handleFinishProject = async () => {
     if (!id || !resultTitle.trim() || !resultDescription.trim()) return;
@@ -99,8 +110,6 @@ export function AdminProjectApplications() {
         },
         acceptedApplications.map((application) => ({
           user_id: application.user.id,
-          role: application.project_role.title,
-          contribution: contributions[application.user.id]?.trim() || null,
         })),
       );
       setProject(completedProject);
@@ -172,6 +181,24 @@ export function AdminProjectApplications() {
       }));
     } finally {
       setSendingMessageId(null);
+    }
+  };
+
+  const handleReviewSubmission = async (
+    submission: AdminProjectSubmission,
+    status: "approved" | "revision_requested" | "rejected",
+  ) => {
+    const note = reviewDrafts[submission.id]?.trim() || null;
+    if (status !== "approved" && !note) return;
+    setReviewingSubmissionId(submission.id);
+    setError(null);
+    try {
+      await reviewProjectSubmission(submission.id, status, note);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось проверить результат");
+    } finally {
+      setReviewingSubmissionId(null);
     }
   };
 
@@ -309,6 +336,91 @@ export function AdminProjectApplications() {
                 </div>
               )}
 
+              {(app.status === "accepted" || app.status === "leave_requested") && (() => {
+                const submission = submissionsByUser.get(app.user.id);
+                if (!submission) {
+                  return (
+                    <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
+                      Студент ещё не отправил личный результат на проверку.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-3 rounded-lg border border-slate-200 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold">Сдача студента</p>
+                      <span className="text-xs text-slate-500">
+                        {SUBMISSION_STATUS_LABELS[submission.status]}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-700">{submission.summary}</p>
+                    {submission.result_url && (
+                      <a
+                        href={submission.result_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-xs text-brand-600 underline"
+                      >
+                        Открыть результат
+                      </a>
+                    )}
+                    {submission.review_note && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Комментарий проверки: {submission.review_note}
+                      </p>
+                    )}
+                    {submission.status === "submitted" && (
+                      <>
+                        <textarea
+                          value={reviewDrafts[submission.id] ?? ""}
+                          onChange={(event) =>
+                            setReviewDrafts((current) => ({
+                              ...current,
+                              [submission.id]: event.target.value.slice(0, 2000),
+                            }))
+                          }
+                          rows={2}
+                          placeholder="Комментарий обязателен для возврата или отказа"
+                          className="admin-input mt-3 text-xs"
+                        />
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            disabled={reviewingSubmissionId === submission.id}
+                            onClick={() => void handleReviewSubmission(submission, "approved")}
+                            className="rounded-lg bg-emerald-500 px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                          >
+                            Подтвердить
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              reviewingSubmissionId === submission.id ||
+                              !reviewDrafts[submission.id]?.trim()
+                            }
+                            onClick={() => void handleReviewSubmission(submission, "revision_requested")}
+                            className="rounded-lg bg-amber-100 px-2 py-2 text-xs font-medium text-amber-800 disabled:opacity-50"
+                          >
+                            Доработать
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              reviewingSubmissionId === submission.id ||
+                              !reviewDrafts[submission.id]?.trim()
+                            }
+                            onClick={() => void handleReviewSubmission(submission, "rejected")}
+                            className="rounded-lg bg-red-100 px-2 py-2 text-xs font-medium text-red-700 disabled:opacity-50"
+                          >
+                            Не подтвердить
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
               {app.status !== "withdrawn" && (
                 <div className="mt-3 border-t border-slate-100 pt-3">
                   <textarea
@@ -368,6 +480,11 @@ export function AdminProjectApplications() {
                   Сначала обработайте все запросы на выход из команды.
                 </p>
               )}
+              {!allAcceptedWorkApproved && (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+                  Завершение станет доступно, когда каждый участник отправит результат и организатор его подтвердит.
+                </p>
+              )}
               <label className="text-xs font-medium text-slate-600">
                 Название результата
                 <input
@@ -399,22 +516,17 @@ export function AdminProjectApplications() {
               </label>
 
               <div className="border-t border-slate-100 pt-3">
-                <p className="mb-2 text-xs font-semibold text-slate-700">Вклад участников</p>
+                <p className="mb-2 text-xs font-semibold text-slate-700">Подтверждённый вклад участников</p>
                 <div className="flex flex-col gap-2">
                   {acceptedApplications.map((application) => (
-                    <label key={application.user.id} className="text-xs text-slate-600">
-                      {application.user.name} · {application.project_role.title}
-                      <input
-                        value={contributions[application.user.id] ?? ""}
-                        onChange={(event) =>
-                          setContributions((current) => ({
-                            ...current,
-                            [application.user.id]: event.target.value,
-                          }))
-                        }
-                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"
-                      />
-                    </label>
+                    <div key={application.user.id} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                      <p className="font-medium text-slate-800">
+                        {application.user.name} · {application.project_role.title}
+                      </p>
+                      <p className="mt-1">
+                        {submissionsByUser.get(application.user.id)?.summary ?? "Результат ещё не подтверждён"}
+                      </p>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -425,6 +537,8 @@ export function AdminProjectApplications() {
                 disabled={
                   finishing ||
                   hasPendingLeaveRequest ||
+                  !allAcceptedWorkApproved ||
+                  project?.status === "completed" ||
                   !resultTitle.trim() ||
                   !resultDescription.trim()
                 }

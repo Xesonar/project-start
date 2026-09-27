@@ -21,6 +21,13 @@ def get_my_team(user: User = Depends(get_current_user), db: Session = Depends(ge
         .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
     )
     if team_id is None:
+        team_id = db.scalar(
+            select(TeamMember.team_id)
+            .join(Team, Team.id == TeamMember.team_id)
+            .where(TeamMember.user_id == user.id, Team.status == "completed")
+            .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
+        )
+    if team_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You are not part of a team yet")
 
     team = db.scalar(

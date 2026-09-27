@@ -33,9 +33,20 @@ class ConfirmationCreate(BaseModel):
     contribution: str | None = Field(default=None, max_length=2000)
 
 
+class FinalizeParticipant(BaseModel):
+    """Only the member identity comes from the client.
+
+    Role and contribution are derived from the accepted team membership and
+    the organizer-approved submission, so the final portfolio cannot be
+    rewritten during project completion.
+    """
+
+    user_id: int
+
+
 class ProjectFinalizeRequest(BaseModel):
     result: ProjectCompleteRequest
-    confirmations: list[ConfirmationCreate] = Field(min_length=1, max_length=100)
+    confirmations: list[FinalizeParticipant] = Field(min_length=1, max_length=100)
 
 
 class ConfirmationRead(BaseModel):

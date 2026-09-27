@@ -50,6 +50,7 @@ def create_application(
             "project_not_open": status.HTTP_400_BAD_REQUEST,
             "invalid_role": status.HTTP_400_BAD_REQUEST,
             "duplicate": status.HTTP_409_CONFLICT,
+            "already_in_team": status.HTTP_409_CONFLICT,
         }
         raise HTTPException(status_by_reason[exc.reason], str(exc)) from exc
 
@@ -102,6 +103,7 @@ def request_application_team_leave(
         status_by_reason = {
             "application_not_found": status.HTTP_404_NOT_FOUND,
             "not_accepted": status.HTTP_409_CONFLICT,
+            "project_completed": status.HTTP_409_CONFLICT,
         }
         raise HTTPException(status_by_reason[exc.reason], str(exc)) from exc
     return db.scalar(_application_query().where(Application.id == application_id))

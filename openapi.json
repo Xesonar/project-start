@@ -1045,6 +1045,114 @@
         }
       }
     },
+    "/admin/projects/{project_id}/submissions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Project Submissions",
+        "operationId": "list_project_submissions_admin_projects__project_id__submissions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminSubmissionRead"
+                  },
+                  "title": "Response List Project Submissions Admin Projects  Project Id  Submissions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/submissions/{submission_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Review Project Submission",
+        "operationId": "review_project_submission_admin_submissions__submission_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionReview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSubmissionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/applications/{application_id}/message": {
       "post": {
         "tags": [
@@ -1149,70 +1257,13 @@
         }
       }
     },
-    "/admin/projects/{project_id}/complete": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Complete Project",
-        "operationId": "complete_project_admin_projects__project_id__complete_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectCompleteRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectListItem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/admin/projects/{project_id}/finalize": {
       "post": {
         "tags": [
           "admin"
         ],
         "summary": "Finalize Project",
-        "description": "Atomically save the result, confirmations and completed state.\n\nThe older two-step endpoints remain available for API compatibility, but\nthe admin UI uses this endpoint so a failed confirmation cannot leave a\ncompleted project without portfolio records.",
+        "description": "Atomically save the result, verified contributions and completed state.",
         "operationId": "finalize_project_admin_projects__project_id__finalize_post",
         "security": [
           {
@@ -1247,71 +1298,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectListItem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/projects/{project_id}/confirmations": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Confirm Participation",
-        "operationId": "confirm_participation_admin_projects__project_id__confirmations_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ConfirmationCreate"
-                },
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ConfirmationRead"
-                  },
-                  "title": "Response Confirm Participation Admin Projects  Project Id  Confirmations Post"
                 }
               }
             }
@@ -1412,6 +1398,108 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PortfolioPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/{project_id}/submission": {
+      "get": {
+        "tags": [
+          "submissions"
+        ],
+        "summary": "Get My Submission",
+        "operationId": "get_my_submission_me_projects__project_id__submission_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "submissions"
+        ],
+        "summary": "Submit Project Result",
+        "operationId": "submit_project_result_me_projects__project_id__submission_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionRead"
                 }
               }
             }
@@ -1664,6 +1752,85 @@
         ],
         "title": "AdminMetricsRead"
       },
+      "AdminSubmissionRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectSubmissionStatus"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SubmissionUserRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "summary",
+          "result_url",
+          "status",
+          "review_note",
+          "submitted_at",
+          "reviewed_at",
+          "user"
+        ],
+        "title": "AdminSubmissionRead"
+      },
       "ApplicantRead": {
         "properties": {
           "id": {
@@ -1825,38 +1992,6 @@
         ],
         "title": "ApplicationStatusUpdate"
       },
-      "ConfirmationCreate": {
-        "properties": {
-          "user_id": {
-            "type": "integer",
-            "title": "User Id"
-          },
-          "role": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 2,
-            "title": "Role"
-          },
-          "contribution": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 2000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contribution"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "role"
-        ],
-        "title": "ConfirmationCreate"
-      },
       "ConfirmationRead": {
         "properties": {
           "role": {
@@ -1916,6 +2051,20 @@
           "advanced"
         ],
         "title": "ExperienceLevel"
+      },
+      "FinalizeParticipant": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "FinalizeParticipant",
+        "description": "Only the member identity comes from the client.\n\nRole and contribution are derived from the accepted team membership and\nthe organizer-approved submission, so the final portfolio cannot be\nrewritten during project completion."
       },
       "HTTPValidationError": {
         "properties": {
@@ -2551,7 +2700,7 @@
           },
           "confirmations": {
             "items": {
-              "$ref": "#/components/schemas/ConfirmationCreate"
+              "$ref": "#/components/schemas/FinalizeParticipant"
             },
             "type": "array",
             "maxItems": 100,
@@ -2914,6 +3063,16 @@
         ],
         "title": "ProjectStatus"
       },
+      "ProjectSubmissionStatus": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "revision_requested",
+          "approved",
+          "rejected"
+        ],
+        "title": "ProjectSubmissionStatus"
+      },
       "SkillLevel": {
         "type": "string",
         "enum": [
@@ -2968,6 +3127,168 @@
           "category"
         ],
         "title": "SkillRead"
+      },
+      "SubmissionCreate": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 3000,
+            "minLength": 10,
+            "title": "Summary"
+          },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary"
+        ],
+        "title": "SubmissionCreate"
+      },
+      "SubmissionRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectSubmissionStatus"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "summary",
+          "result_url",
+          "status",
+          "review_note",
+          "submitted_at",
+          "reviewed_at"
+        ],
+        "title": "SubmissionRead"
+      },
+      "SubmissionReview": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "revision_requested",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SubmissionReview"
+      },
+      "SubmissionUserRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "avatar_url"
+        ],
+        "title": "SubmissionUserRead"
       },
       "TeamMemberRead": {
         "properties": {

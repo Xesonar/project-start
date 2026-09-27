@@ -259,6 +259,11 @@ def test_rejecting_previously_accepted_application_removes_team_membership(clien
     assert accepted.status_code == 200
     assert client.get("/me/team", headers=student_headers).status_code == 200
 
+    leave_requested = client.post(
+        f"/me/applications/{application['id']}/leave-request", headers=student_headers
+    )
+    assert leave_requested.status_code == 200
+
     rejected = client.patch(
         f"/admin/applications/{application['id']}",
         headers=admin_headers,
@@ -335,6 +340,11 @@ def test_full_team_closes_project_and_rejection_reopens_it(client, monkeypatch):
     )
     assert blocked.status_code == 400
 
+    leave_requested = client.post(
+        f"/me/applications/{application['id']}/leave-request", headers=student_headers
+    )
+    assert leave_requested.status_code == 200
+
     rejected = client.patch(
         f"/admin/applications/{application['id']}",
         headers=admin_headers,
@@ -342,6 +352,107 @@ def test_full_team_closes_project_and_rejection_reopens_it(client, monkeypatch):
     )
     assert rejected.status_code == 200
     assert client.get(f"/projects/{project['id']}").json()["status"] == "open"
+
+
+def test_filling_team_rejects_remaining_pending_applications(client, monkeypatch):
+    first_headers = _student_headers(client, 217)
+    second_headers = _student_headers(client, 218)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, first_application = _seed_and_apply(client, first_headers)
+    second_application = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=second_headers,
+        json={"project_role_id": first_application["project_role"]["id"]},
+    )
+    assert second_application.status_code == 201
+
+    from sqlalchemy import update
+
+    from app.db.session import SessionLocal
+    from app.models.project import Project
+
+    with SessionLocal() as db:
+        db.execute(
+            update(Project)
+            .where(Project.id == project["id"])
+            .values(participant_limit=1)
+        )
+        db.commit()
+
+    accepted = client.patch(
+        f"/admin/applications/{first_application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    )
+    assert accepted.status_code == 200
+
+    applications = client.get(
+        f"/admin/projects/{project['id']}/applications", headers=admin_headers
+    ).json()
+    remaining = next(item for item in applications if item["id"] == second_application.json()["id"])
+    assert remaining["status"] == "rejected"
+    assert remaining["decision_note"] == "Команда проекта уже сформирована."
+
+
+def test_student_cannot_apply_to_second_project_while_in_active_team(client, monkeypatch):
+    student_headers = _student_headers(client, 219)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    another_project = next(
+        item for item in client.get("/projects").json() if item["id"] != project["id"]
+    )
+    another_detail = client.get(f"/projects/{another_project['id']}").json()
+    pending_elsewhere = client.post(
+        f"/projects/{another_project['id']}/applications",
+        headers=student_headers,
+        json={"project_role_id": another_detail["roles"][0]["id"]},
+    )
+    assert pending_elsewhere.status_code == 201
+
+    assert client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    ).status_code == 200
+    other_after_acceptance = next(
+        item
+        for item in client.get("/me/applications", headers=student_headers).json()
+        if item["id"] == pending_elsewhere.json()["id"]
+    )
+    assert other_after_acceptance["status"] == "rejected"
+    assert other_after_acceptance["decision_note"] == "Вы уже приняты в другую активную команду."
+
+    blocked = client.post(
+        f"/projects/{another_project['id']}/applications",
+        headers=student_headers,
+        json={"project_role_id": another_detail["roles"][0]["id"]},
+    )
+    assert blocked.status_code == 409
+
+
+def test_student_can_apply_again_after_rejection(client, monkeypatch):
+    student_headers = _student_headers(client, 220)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    rejected = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "rejected", "note": "Сначала обнови описание опыта"},
+    )
+    assert rejected.status_code == 200
+
+    repeated = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=student_headers,
+        json={
+            "project_role_id": application["project_role"]["id"],
+            "message": "Обновил опыт и пробую снова",
+        },
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == application["id"]
+    assert repeated.json()["status"] == "pending"
+    assert repeated.json()["decision_note"] is None
 
 
 def test_project_chat_is_visible_only_to_team_member(client, monkeypatch):

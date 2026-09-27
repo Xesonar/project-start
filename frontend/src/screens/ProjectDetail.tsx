@@ -22,6 +22,11 @@ const SKILL_LEVEL_LABELS: Record<string, string> = {
   advanced: "продвинутый",
 };
 
+const blocksRoleSelection = (application: Application) =>
+  application.status === "pending" ||
+  application.status === "accepted" ||
+  application.status === "leave_requested";
+
 export function ProjectDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -54,7 +59,7 @@ export function ProjectDetailScreen() {
           currentApplications
             .filter(
               (application) =>
-                application.project.id === data.id && application.status !== "withdrawn",
+                application.project.id === data.id && blocksRoleSelection(application),
             )
             .map((application) => application.project_role.id),
         );
@@ -182,7 +187,7 @@ export function ProjectDetailScreen() {
               (application) =>
                 application.project.id === project.id &&
                 application.project_role.id === role.id &&
-                application.status !== "withdrawn",
+                blocksRoleSelection(application),
             );
             return (
             <button

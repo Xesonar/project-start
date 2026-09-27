@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.application import Application
 from app.models.enums import ApplicationStatus, ProjectStatus
 from app.models.project import Project, ProjectRole
+from app.models.team import Team, TeamMember
 
 
 class ApplicationError(Exception):
@@ -28,6 +29,17 @@ def create_application(
     if project.status != ProjectStatus.open:
         raise ApplicationError("project_not_open", "Project is not open for applications")
 
+    active_team_id = db.scalar(
+        select(TeamMember.team_id)
+        .join(Team, Team.id == TeamMember.team_id)
+        .where(TeamMember.user_id == user_id, Team.status == "active")
+    )
+    if active_team_id is not None:
+        raise ApplicationError(
+            "already_in_team",
+            "You already have an active project team",
+        )
+
     role = db.get(ProjectRole, project_role_id)
     if role is None or role.project_id != project_id:
         raise ApplicationError("invalid_role", "Role does not belong to this project")
@@ -40,10 +52,14 @@ def create_application(
         )
     )
     if existing is not None:
-        if existing.status != ApplicationStatus.withdrawn:
+        if existing.status not in {
+            ApplicationStatus.withdrawn,
+            ApplicationStatus.rejected,
+        }:
             raise ApplicationError("duplicate", "You already applied for this role")
         existing.status = ApplicationStatus.pending
         existing.message = message
+        existing.decision_note = None
         existing.created_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(existing)
@@ -101,6 +117,11 @@ def request_team_leave(db: Session, *, user_id: int, application_id: int) -> App
         raise ApplicationError(
             "not_accepted",
             "Only an accepted application can request team leave",
+        )
+    if application.project.status == ProjectStatus.completed:
+        raise ApplicationError(
+            "project_completed",
+            "A completed project team cannot be changed",
         )
     application.status = ApplicationStatus.leave_requested
     db.commit()

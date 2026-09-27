@@ -11,6 +11,7 @@ import type {
   ProjectStatus,
 } from "./projects";
 import type { SkillLevel } from "./users";
+import type { AdminProjectSubmission, SubmissionStatus } from "./submissions";
 
 export interface AdminApplicant {
   id: number;
@@ -37,8 +38,6 @@ export interface ProjectCompletionPayload {
 
 export interface ParticipationConfirmationPayload {
   user_id: number;
-  role: string;
-  contribution?: string | null;
 }
 
 export interface AdminProjectCreatePayload {
@@ -123,10 +122,19 @@ export const messageApplicationStudent = (applicationId: number, text: string) =
     auth: "admin",
   });
 
-export const completeProject = (projectId: number, payload: ProjectCompletionPayload) =>
-  apiRequest<ProjectListItem>(`/admin/projects/${projectId}/complete`, {
-    method: "POST",
-    body: payload,
+export const listProjectSubmissions = (projectId: number) =>
+  apiRequest<AdminProjectSubmission[]>(`/admin/projects/${projectId}/submissions`, {
+    auth: "admin",
+  });
+
+export const reviewProjectSubmission = (
+  submissionId: number,
+  status: Extract<SubmissionStatus, "approved" | "revision_requested" | "rejected">,
+  note?: string | null,
+) =>
+  apiRequest<AdminProjectSubmission>(`/admin/submissions/${submissionId}`, {
+    method: "PATCH",
+    body: { status, note },
     auth: "admin",
   });
 
@@ -138,15 +146,5 @@ export const finalizeProject = (
   apiRequest<ProjectListItem>(`/admin/projects/${projectId}/finalize`, {
     method: "POST",
     body: { result, confirmations },
-    auth: "admin",
-  });
-
-export const confirmProjectParticipants = (
-  projectId: number,
-  payload: ParticipationConfirmationPayload[],
-) =>
-  apiRequest(`/admin/projects/${projectId}/confirmations`, {
-    method: "POST",
-    body: payload,
     auth: "admin",
   });
