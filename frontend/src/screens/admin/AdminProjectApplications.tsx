@@ -14,12 +14,14 @@ const STATUS_LABELS: Record<AdminApplication["status"], string> = {
   pending: "На рассмотрении",
   accepted: "Принята",
   rejected: "Отклонена",
+  withdrawn: "Отменена студентом",
 };
 
 const STATUS_STYLES: Record<AdminApplication["status"], string> = {
   pending: "bg-amber-50 text-amber-700",
   accepted: "bg-emerald-50 text-emerald-700",
   rejected: "bg-slate-100 text-slate-500",
+  withdrawn: "bg-slate-100 text-slate-500",
 };
 
 export function AdminProjectApplications() {

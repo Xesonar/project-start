@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application
-from app.models.enums import ProjectStatus
+from app.models.enums import ApplicationStatus, ProjectStatus
 from app.models.project import Project, ProjectRole
 
 
@@ -29,6 +32,23 @@ def create_application(
     if role is None or role.project_id != project_id:
         raise ApplicationError("invalid_role", "Role does not belong to this project")
 
+    existing = db.scalar(
+        select(Application).where(
+            Application.user_id == user_id,
+            Application.project_id == project_id,
+            Application.project_role_id == role.id,
+        )
+    )
+    if existing is not None:
+        if existing.status != ApplicationStatus.withdrawn:
+            raise ApplicationError("duplicate", "You already applied for this role")
+        existing.status = ApplicationStatus.pending
+        existing.message = message
+        existing.created_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
     application = Application(
         user_id=user_id, project_id=project_id, project_role_id=role.id, message=message
     )
@@ -39,5 +59,28 @@ def create_application(
         db.rollback()
         raise ApplicationError("duplicate", "You already applied for this role") from exc
 
+    db.refresh(application)
+    return application
+
+
+def withdraw_application(db: Session, *, user_id: int, application_id: int) -> Application:
+    application = db.scalar(
+        select(Application).where(
+            Application.id == application_id,
+            Application.user_id == user_id,
+        )
+    )
+    if application is None:
+        raise ApplicationError("application_not_found", "Application not found")
+    if application.status == ApplicationStatus.withdrawn:
+        return application
+    if application.status != ApplicationStatus.pending:
+        raise ApplicationError(
+            "not_pending",
+            "Only an application under review can be withdrawn",
+        )
+
+    application.status = ApplicationStatus.withdrawn
+    db.commit()
     db.refresh(application)
     return application

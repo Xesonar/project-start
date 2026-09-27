@@ -8,7 +8,7 @@ from app.api import admin, applications, auth, bot_webhook, portfolio, projects,
 from app.core.config import settings
 from app.db.session import get_db
 
-app = FastAPI(title="Project Start API")
+app = FastAPI(title="Старт API")
 
 app.add_middleware(
     CORSMiddleware,

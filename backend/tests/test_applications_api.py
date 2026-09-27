@@ -75,3 +75,55 @@ def test_apply_without_auth_is_rejected(client):
     project = client.get("/projects").json()[0]
     resp = client.post(f"/projects/{project['id']}/applications", json={"project_role_id": 1})
     assert resp.status_code == 401
+
+
+def test_student_can_withdraw_pending_application_and_apply_again(client):
+    headers = _login(client, 114)
+    project, role_id = _first_project_with_role(client, headers)
+    created = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=headers,
+        json={"project_role_id": role_id, "message": "Первый отклик"},
+    ).json()
+
+    withdrawn = client.delete(f"/me/applications/{created['id']}", headers=headers)
+    assert withdrawn.status_code == 204
+    applications = client.get("/me/applications", headers=headers).json()
+    assert applications[0]["status"] == "withdrawn"
+
+    reapplied = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=headers,
+        json={"project_role_id": role_id, "message": "Передумал, хочу участвовать"},
+    )
+    assert reapplied.status_code == 201, reapplied.text
+    assert reapplied.json()["id"] == created["id"]
+    assert reapplied.json()["status"] == "pending"
+    assert reapplied.json()["message"] == "Передумал, хочу участвовать"
+
+
+def test_student_cannot_withdraw_another_students_application(client):
+    owner_headers = _login(client, 115)
+    stranger_headers = _login(client, 116)
+    project, role_id = _first_project_with_role(client, owner_headers)
+    created = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=owner_headers,
+        json={"project_role_id": role_id},
+    ).json()
+
+    response = client.delete(f"/me/applications/{created['id']}", headers=stranger_headers)
+    assert response.status_code == 404
+
+
+def test_withdraw_is_idempotent(client):
+    headers = _login(client, 117)
+    project, role_id = _first_project_with_role(client, headers)
+    created = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=headers,
+        json={"project_role_id": role_id},
+    ).json()
+
+    assert client.delete(f"/me/applications/{created['id']}", headers=headers).status_code == 204
+    assert client.delete(f"/me/applications/{created['id']}", headers=headers).status_code == 204

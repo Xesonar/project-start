@@ -8,7 +8,11 @@ from app.models.application import Application
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.application import ApplicationCreate, ApplicationRead
-from app.services.applications import ApplicationError, create_application as create_application_service
+from app.services.applications import (
+    ApplicationError,
+    create_application as create_application_service,
+    withdraw_application as withdraw_application_service,
+)
 
 router = APIRouter(tags=["applications"])
 
@@ -61,3 +65,22 @@ def list_my_applications(
         .order_by(Application.created_at.desc())
     )
     return list(db.scalars(query))
+
+
+@router.delete(
+    "/me/applications/{application_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def withdraw_my_application(
+    application_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    try:
+        withdraw_application_service(db, user_id=user.id, application_id=application_id)
+    except ApplicationError as exc:
+        status_by_reason = {
+            "application_not_found": status.HTTP_404_NOT_FOUND,
+            "not_pending": status.HTTP_409_CONFLICT,
+        }
+        raise HTTPException(status_by_reason[exc.reason], str(exc)) from exc

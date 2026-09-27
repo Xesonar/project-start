@@ -1,7 +1,7 @@
 import { apiRequest } from "./client";
 import type { ProjectListItem, ProjectRole } from "./projects";
 
-export type ApplicationStatus = "pending" | "accepted" | "rejected";
+export type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn";
 
 export interface Application {
   id: number;
@@ -18,3 +18,6 @@ export const createApplication = (
 ) => apiRequest<Application>(`/projects/${projectId}/applications`, { method: "POST", body: payload });
 
 export const getMyApplications = () => apiRequest<Application[]>("/me/applications");
+
+export const withdrawApplication = (applicationId: number) =>
+  apiRequest<void>(`/me/applications/${applicationId}`, { method: "DELETE" });

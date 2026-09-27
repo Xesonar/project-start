@@ -149,6 +149,11 @@ def update_application_status(
     application = db.scalar(_admin_application_query().where(Application.id == application_id))
     if application is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
+    if application.status == ApplicationStatus.withdrawn:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A withdrawn application cannot be processed",
+        )
 
     application.status = ApplicationStatus(payload.status)
 

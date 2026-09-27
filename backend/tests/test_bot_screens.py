@@ -131,6 +131,37 @@ def test_build_apply_result_success_then_duplicate(client):
         db.close()
 
 
+def test_bot_can_withdraw_pending_application_and_apply_again(client):
+    run_seed()
+    user = _login_and_get_user(client, 707)
+
+    db = SessionLocal()
+    try:
+        from app.models.enums import ProjectStatus
+        from app.models.project import Project
+
+        project = db.scalar(
+            select(Project).where(Project.status == ProjectStatus.open).order_by(Project.id.desc())
+        )
+        role_id = project.roles[0].id
+        screens.build_apply_result(db, user, project.id, role_id)
+
+        _text, buttons = screens.build_my_applications(db, user)
+        cancel_payload = next(
+            button["payload"]
+            for row in buttons
+            for button in row
+            if button.get("payload", "").startswith("withdraw:")
+        )
+        text, _ = screens.route(db, user, decode(cancel_payload))
+        assert "отменён" in text
+
+        text_again, _ = screens.build_apply_result(db, user, project.id, role_id)
+        assert "отправлен" in text_again
+    finally:
+        db.close()
+
+
 def test_build_my_applications_and_team_empty_states(client):
     run_seed()
     user = _login_and_get_user(client, 704)

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Project Start API",
+    "title": "Старт API",
     "version": "0.1.0"
   },
   "paths": {
@@ -590,6 +590,46 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/me/applications/{application_id}": {
+      "delete": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Withdraw My Application",
+        "operationId": "withdraw_my_application_me_applications__application_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Application Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/me/team": {
@@ -1492,7 +1532,8 @@
         "enum": [
           "pending",
           "accepted",
-          "rejected"
+          "rejected",
+          "withdrawn"
         ],
         "title": "ApplicationStatus"
       },

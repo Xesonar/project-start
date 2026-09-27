@@ -41,3 +41,4 @@ class ApplicationStatus(str, enum.Enum):
     pending = "pending"
     accepted = "accepted"
     rejected = "rejected"
+    withdrawn = "withdrawn"

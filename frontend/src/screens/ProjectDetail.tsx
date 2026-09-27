@@ -51,7 +51,10 @@ export function ProjectDetailScreen() {
       .then(([data, currentApplications, recommendations]) => {
         const appliedRoleIds = new Set(
           currentApplications
-            .filter((application) => application.project.id === data.id)
+            .filter(
+              (application) =>
+                application.project.id === data.id && application.status !== "withdrawn",
+            )
             .map((application) => application.project_role.id),
         );
         setProject(data);
@@ -82,7 +85,13 @@ export function ProjectDetailScreen() {
     try {
       await createApplication(project.id, { project_role_id: selectedRoleId });
       setApplications((current) => [
-        ...(current ?? []),
+        ...(current ?? []).filter(
+          (application) =>
+            !(
+              application.project.id === project.id &&
+              application.project_role.id === selectedRoleId
+            ),
+        ),
         {
           id: -selectedRoleId,
           status: "pending",
@@ -166,7 +175,9 @@ export function ProjectDetailScreen() {
           {project.roles.map((role) => {
             const existingApplication = applications?.find(
               (application) =>
-                application.project.id === project.id && application.project_role.id === role.id,
+                application.project.id === project.id &&
+                application.project_role.id === role.id &&
+                application.status !== "withdrawn",
             );
             return (
             <button

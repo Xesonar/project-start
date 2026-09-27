@@ -215,6 +215,22 @@ def test_rejecting_application_does_not_create_team(client, monkeypatch):
     assert resp.status_code == 404
 
 
+def test_admin_cannot_process_withdrawn_application(client, monkeypatch):
+    student_headers = _student_headers(client, 211)
+    admin_headers = _admin_headers(client, monkeypatch)
+    _project, application = _seed_and_apply(client, student_headers)
+    assert client.delete(
+        f"/me/applications/{application['id']}", headers=student_headers
+    ).status_code == 204
+
+    response = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    )
+    assert response.status_code == 409
+
+
 def test_rejecting_previously_accepted_application_removes_team_membership(client, monkeypatch):
     student_headers = _student_headers(client, 206)
     admin_headers = _admin_headers(client, monkeypatch)

@@ -14,12 +14,18 @@ from app.models.team import Team, TeamMember
 from app.models.user import User
 from app.services.applications import ApplicationError
 from app.services.applications import create_application as create_application_service
+from app.services.applications import withdraw_application as withdraw_application_service
 
 PAGE_SIZE = 5
 
 _DIFFICULTY_LABELS = {"beginner": "начальный", "intermediate": "средний", "advanced": "продвинутый"}
 _FORMAT_LABELS = {"online": "онлайн", "offline": "очно", "hybrid": "гибрид"}
-_STATUS_LABELS = {"pending": "на рассмотрении", "accepted": "принята", "rejected": "отклонена"}
+_STATUS_LABELS = {
+    "pending": "на рассмотрении",
+    "accepted": "принята",
+    "rejected": "отклонена",
+    "withdrawn": "отменена",
+}
 
 Buttons = list[list[dict]]
 
@@ -129,7 +135,9 @@ def build_project_detail(db, user: User, project_id: int, page: int) -> tuple[st
     already_applied_role_ids = set(
         db.scalars(
             select(Application.project_role_id).where(
-                Application.user_id == user.id, Application.project_id == project_id
+                Application.user_id == user.id,
+                Application.project_id == project_id,
+                Application.status != ApplicationStatus.withdrawn,
             )
         )
     )
@@ -193,11 +201,38 @@ def build_my_applications(db, user: User) -> tuple[str, Buttons]:
         return "Пока нет откликов — найди проект на главной.", [[_HOME_BUTTON]]
 
     lines = ["Мои отклики:", ""]
+    buttons: Buttons = []
     for app in applications:
         status_label = _STATUS_LABELS[app.status.value]
         lines.append(f"— {app.project.title} ({app.project_role.title}): {status_label}")
+        if app.status == ApplicationStatus.pending:
+            buttons.append(
+                [
+                    {
+                        "type": "callback",
+                        "text": f"Отменить: {app.project.title}"[:40],
+                        "payload": encode("withdraw", app.id),
+                    }
+                ]
+            )
 
-    return "\n".join(lines), [[_HOME_BUTTON]]
+    buttons.append([_HOME_BUTTON])
+    return "\n".join(lines), buttons
+
+
+def build_withdraw_result(db, user: User, application_id: int) -> tuple[str, Buttons]:
+    try:
+        withdraw_application_service(db, user_id=user.id, application_id=application_id)
+    except ApplicationError as exc:
+        friendly = {
+            "application_not_found": "Отклик не найден.",
+            "not_pending": "Этот отклик уже нельзя отменить.",
+        }
+        return friendly.get(exc.reason, "Не удалось отменить отклик."), [[_HOME_BUTTON]]
+    return "Отклик отменён. На эту роль можно откликнуться снова.", [
+        [{"type": "callback", "text": "Мои отклики", "payload": encode("a")}],
+        [_HOME_BUTTON],
+    ]
 
 
 def build_my_team(db, user: User) -> tuple[str, Buttons]:
@@ -238,6 +273,8 @@ def route(db, user: User, action: Action) -> tuple[str, Buttons]:
             return build_apply_result(db, user, int(action.args[0]), int(action.args[1]))
         if action.screen == "a":
             return build_my_applications(db, user)
+        if action.screen == "withdraw":
+            return build_withdraw_result(db, user, int(action.args[0]))
         if action.screen == "t":
             return build_my_team(db, user)
     except (IndexError, ValueError):
