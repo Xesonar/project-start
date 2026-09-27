@@ -3,8 +3,11 @@ import { Link, useParams } from "react-router-dom";
 
 import {
   finalizeProject,
+  getProjectCommunication,
   listAdminProjects,
   listProjectApplications,
+  messageApplicationStudent,
+  updateProjectCommunication,
   updateApplicationStatus,
   type AdminApplication,
 } from "@/api/admin";
@@ -15,6 +18,7 @@ const STATUS_LABELS: Record<AdminApplication["status"], string> = {
   accepted: "Принята",
   rejected: "Отклонена",
   withdrawn: "Отменена студентом",
+  leave_requested: "Запрос выхода",
 };
 
 const STATUS_STYLES: Record<AdminApplication["status"], string> = {
@@ -22,6 +26,7 @@ const STATUS_STYLES: Record<AdminApplication["status"], string> = {
   accepted: "bg-emerald-50 text-emerald-700",
   rejected: "bg-slate-100 text-slate-500",
   withdrawn: "bg-slate-100 text-slate-500",
+  leave_requested: "bg-violet-50 text-violet-700",
 };
 
 export function AdminProjectApplications() {
@@ -36,13 +41,25 @@ export function AdminProjectApplications() {
   const [contributions, setContributions] = useState<Record<number, string>>({});
   const [finishing, setFinishing] = useState(false);
   const [finishSuccess, setFinishSuccess] = useState(false);
+  const [teamChatUrl, setTeamChatUrl] = useState("");
+  const [savingChat, setSavingChat] = useState(false);
+  const [chatSaved, setChatSaved] = useState(false);
+  const [rejectionDrafts, setRejectionDrafts] = useState<Record<number, string>>({});
+  const [messageDrafts, setMessageDrafts] = useState<Record<number, string>>({});
+  const [sendingMessageId, setSendingMessageId] = useState<number | null>(null);
+  const [messageStatuses, setMessageStatuses] = useState<Record<number, string>>({});
 
   const load = () => {
     if (!id) return;
-    Promise.all([listProjectApplications(Number(id)), listAdminProjects()])
-      .then(([nextApplications, projects]) => {
+    Promise.all([
+      listProjectApplications(Number(id)),
+      listAdminProjects(),
+      getProjectCommunication(Number(id)),
+    ])
+      .then(([nextApplications, projects, communication]) => {
         setApplications(nextApplications);
         setProject(projects.find((item) => item.id === Number(id)) ?? null);
+        setTeamChatUrl(communication.team_chat_url ?? "");
         setContributions((current) => {
           const next = { ...current };
           for (const application of nextApplications) {
@@ -62,6 +79,9 @@ export function AdminProjectApplications() {
         .filter((application) => application.status === "accepted")
         .map((application) => [application.user.id, application]),
     ).values(),
+  );
+  const hasPendingLeaveRequest = (applications ?? []).some(
+    (application) => application.status === "leave_requested",
   );
 
   const handleFinishProject = async () => {
@@ -94,15 +114,64 @@ export function AdminProjectApplications() {
 
   useEffect(load, [id]);
 
-  const handleDecision = async (applicationId: number, status: "accepted" | "rejected") => {
+  const handleDecision = async (
+    applicationId: number,
+    status: "accepted" | "rejected",
+    note?: string | null,
+  ) => {
     setPendingActionId(applicationId);
     try {
-      await updateApplicationStatus(applicationId, status);
+      await updateApplicationStatus(applicationId, status, note);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось обновить статус");
     } finally {
       setPendingActionId(null);
+    }
+  };
+
+  const handleSaveChat = async () => {
+    if (!id) return;
+    setSavingChat(true);
+    setChatSaved(false);
+    setError(null);
+    try {
+      const result = await updateProjectCommunication(
+        Number(id),
+        teamChatUrl.trim() || null,
+      );
+      setTeamChatUrl(result.team_chat_url ?? "");
+      setChatSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить ссылку на чат");
+    } finally {
+      setSavingChat(false);
+    }
+  };
+
+  const handleMessageStudent = async (applicationId: number) => {
+    const text = messageDrafts[applicationId]?.trim();
+    if (!text) return;
+    setSendingMessageId(applicationId);
+    setMessageStatuses((current) => ({ ...current, [applicationId]: "" }));
+    try {
+      const result = await messageApplicationStudent(applicationId, text);
+      setMessageStatuses((current) => ({
+        ...current,
+        [applicationId]: result.delivered
+          ? "Сообщение отправлено в MAX"
+          : "MAX не подтвердил доставку. Проверь токен и запуск бота студентом.",
+      }));
+      if (result.delivered) {
+        setMessageDrafts((current) => ({ ...current, [applicationId]: "" }));
+      }
+    } catch (err) {
+      setMessageStatuses((current) => ({
+        ...current,
+        [applicationId]: err instanceof Error ? err.message : "Не удалось отправить сообщение",
+      }));
+    } finally {
+      setSendingMessageId(null);
     }
   };
 
@@ -117,6 +186,31 @@ export function AdminProjectApplications() {
       </header>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold">Чат команды в MAX</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Принятые студенты получат эту ссылку через бота и увидят её на экране команды.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            type="url"
+            value={teamChatUrl}
+            onChange={(event) => { setTeamChatUrl(event.target.value); setChatSaved(false); }}
+            placeholder="https://max.ru/..."
+            className="admin-input min-w-0 flex-1"
+          />
+          <button
+            type="button"
+            disabled={savingChat}
+            onClick={() => void handleSaveChat()}
+            className="rounded-lg bg-brand-600 px-4 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {savingChat ? "Сохраняем…" : "Сохранить"}
+          </button>
+        </div>
+        {chatSaved && <p className="mt-2 text-xs text-emerald-600">Ссылка сохранена</p>}
+      </section>
 
       {!error && applications === null && (
         <div className="flex flex-col gap-3">
@@ -143,6 +237,9 @@ export function AdminProjectApplications() {
                   </p>
                   <p className="mt-1 text-xs text-slate-500">Роль: {app.project_role.title}</p>
                   {app.message && <p className="mt-1 text-sm text-slate-600">«{app.message}»</p>}
+                  {app.decision_note && (
+                    <p className="mt-1 text-xs text-slate-500">Комментарий: {app.decision_note}</p>
+                  )}
                 </div>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[app.status]}`}
@@ -152,7 +249,20 @@ export function AdminProjectApplications() {
               </div>
 
               {app.status === "pending" && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col gap-2">
+                  <textarea
+                    value={rejectionDrafts[app.id] ?? ""}
+                    onChange={(event) =>
+                      setRejectionDrafts((current) => ({
+                        ...current,
+                        [app.id]: event.target.value.slice(0, 500),
+                      }))
+                    }
+                    rows={2}
+                    placeholder="Причина отказа для студента"
+                    className="admin-input text-xs"
+                  />
+                  <div className="flex gap-2">
                   <button
                     type="button"
                     disabled={pendingActionId === app.id}
@@ -163,12 +273,67 @@ export function AdminProjectApplications() {
                   </button>
                   <button
                     type="button"
-                    disabled={pendingActionId === app.id}
-                    onClick={() => handleDecision(app.id, "rejected")}
+                    disabled={pendingActionId === app.id || !rejectionDrafts[app.id]?.trim()}
+                    onClick={() => handleDecision(app.id, "rejected", rejectionDrafts[app.id])}
                     className="flex-1 rounded-lg bg-slate-200 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-60"
                   >
                     Отклонить
                   </button>
+                  </div>
+                </div>
+              )}
+
+              {app.status === "leave_requested" && (
+                <div className="mt-3 rounded-lg bg-violet-50 p-3">
+                  <p className="text-xs text-violet-700">
+                    Студент просит выйти из команды. До решения место остаётся занятым.
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={pendingActionId === app.id}
+                      onClick={() => handleDecision(app.id, "accepted", "Запрос выхода отклонён")}
+                      className="flex-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-700"
+                    >
+                      Оставить в команде
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingActionId === app.id}
+                      onClick={() => handleDecision(app.id, "rejected", "Выход из команды подтверждён")}
+                      className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white"
+                    >
+                      Подтвердить выход
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {app.status !== "withdrawn" && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <textarea
+                    value={messageDrafts[app.id] ?? ""}
+                    onChange={(event) =>
+                      setMessageDrafts((current) => ({
+                        ...current,
+                        [app.id]: event.target.value.slice(0, 1000),
+                      }))
+                    }
+                    rows={2}
+                    placeholder="Сообщение студенту через бота MAX"
+                    className="admin-input text-xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={sendingMessageId === app.id || !messageDrafts[app.id]?.trim()}
+                    onClick={() => void handleMessageStudent(app.id)}
+                    className="mt-2 rounded-lg border border-brand-200 px-3 py-2 text-xs font-medium text-brand-700 disabled:opacity-40"
+                  >
+                    {sendingMessageId === app.id ? "Отправляем…" : "Написать через MAX"}
+                  </button>
+                  {messageStatuses[app.id] && (
+                    <p className="mt-2 text-xs text-slate-500">{messageStatuses[app.id]}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -198,6 +363,11 @@ export function AdminProjectApplications() {
             </p>
           ) : (
             <div className="mt-4 flex flex-col gap-3">
+              {hasPendingLeaveRequest && (
+                <p className="rounded-lg bg-violet-50 p-3 text-sm text-violet-700">
+                  Сначала обработайте все запросы на выход из команды.
+                </p>
+              )}
               <label className="text-xs font-medium text-slate-600">
                 Название результата
                 <input
@@ -252,7 +422,12 @@ export function AdminProjectApplications() {
               <button
                 type="button"
                 onClick={handleFinishProject}
-                disabled={finishing || !resultTitle.trim() || !resultDescription.trim()}
+                disabled={
+                  finishing ||
+                  hasPendingLeaveRequest ||
+                  !resultTitle.trim() ||
+                  !resultDescription.trim()
+                }
                 className="btn-primary mt-1 disabled:opacity-50"
               >
                 {finishing ? "Сохраняем…" : "Завершить и подтвердить участников"}

@@ -21,6 +21,7 @@ class Application(Base):
         Enum(ApplicationStatus, name="application_status"), default=ApplicationStatus.pending
     )
     message: Mapped[str | None] = mapped_column(Text, default=None)
+    decision_note: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

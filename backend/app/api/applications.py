@@ -11,6 +11,7 @@ from app.schemas.application import ApplicationCreate, ApplicationRead
 from app.services.applications import (
     ApplicationError,
     create_application as create_application_service,
+    request_team_leave as request_team_leave_service,
     withdraw_application as withdraw_application_service,
 )
 
@@ -84,3 +85,23 @@ def withdraw_my_application(
             "not_pending": status.HTTP_409_CONFLICT,
         }
         raise HTTPException(status_by_reason[exc.reason], str(exc)) from exc
+
+
+@router.post(
+    "/me/applications/{application_id}/leave-request",
+    response_model=ApplicationRead,
+)
+def request_application_team_leave(
+    application_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Application:
+    try:
+        request_team_leave_service(db, user_id=user.id, application_id=application_id)
+    except ApplicationError as exc:
+        status_by_reason = {
+            "application_not_found": status.HTTP_404_NOT_FOUND,
+            "not_accepted": status.HTTP_409_CONFLICT,
+        }
+        raise HTTPException(status_by_reason[exc.reason], str(exc)) from exc
+    return db.scalar(_application_query().where(Application.id == application_id))

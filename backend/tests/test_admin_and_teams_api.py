@@ -207,12 +207,27 @@ def test_rejecting_application_does_not_create_team(client, monkeypatch):
     _project, application = _seed_and_apply(client, student_headers)
 
     resp = client.patch(
-        f"/admin/applications/{application['id']}", headers=admin_headers, json={"status": "rejected"}
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "rejected", "note": "Сейчас нужен другой набор навыков"},
     )
     assert resp.status_code == 200
 
     resp = client.get("/me/team", headers=student_headers)
     assert resp.status_code == 404
+
+
+def test_admin_must_explain_rejection(client, monkeypatch):
+    student_headers = _student_headers(client, 216)
+    admin_headers = _admin_headers(client, monkeypatch)
+    _project, application = _seed_and_apply(client, student_headers)
+
+    response = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "rejected"},
+    )
+    assert response.status_code == 422
 
 
 def test_admin_cannot_process_withdrawn_application(client, monkeypatch):
@@ -247,7 +262,7 @@ def test_rejecting_previously_accepted_application_removes_team_membership(clien
     rejected = client.patch(
         f"/admin/applications/{application['id']}",
         headers=admin_headers,
-        json={"status": "rejected"},
+        json={"status": "rejected", "note": "Выход подтверждён"},
     )
     assert rejected.status_code == 200
     assert client.get("/me/team", headers=student_headers).status_code == 404
@@ -323,7 +338,98 @@ def test_full_team_closes_project_and_rejection_reopens_it(client, monkeypatch):
     rejected = client.patch(
         f"/admin/applications/{application['id']}",
         headers=admin_headers,
-        json={"status": "rejected"},
+        json={"status": "rejected", "note": "Освобождаем место"},
     )
     assert rejected.status_code == 200
     assert client.get(f"/projects/{project['id']}").json()["status"] == "open"
+
+
+def test_project_chat_is_visible_only_to_team_member(client, monkeypatch):
+    student_headers = _student_headers(client, 213)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    chat_url = "https://max.ru/join/project-team"
+
+    saved = client.patch(
+        f"/admin/projects/{project['id']}/communication",
+        headers=admin_headers,
+        json={"team_chat_url": chat_url},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["team_chat_url"] == chat_url
+    assert "team_chat_url" not in client.get(f"/projects/{project['id']}").json()
+
+    accepted = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    )
+    assert accepted.status_code == 200
+    assert client.get("/me/team", headers=student_headers).json()["team_chat_url"] == chat_url
+
+
+def test_admin_can_message_student_through_max_bot(client, monkeypatch):
+    student_headers = _student_headers(client, 214)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    sent: list[dict] = []
+
+    def fake_send_message(**kwargs):
+        sent.append(kwargs)
+        return {"body": {"mid": "message-id"}}
+
+    monkeypatch.setattr("app.api.admin.max_bot_client.send_message", fake_send_message)
+    response = client.post(
+        f"/admin/applications/{application['id']}/message",
+        headers=admin_headers,
+        json={"text": "Когда сможешь созвониться?"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"delivered": True}
+    assert sent[0]["user_id"] == 214
+    assert project["title"] in sent[0]["text"]
+
+
+def test_student_requests_team_leave_and_admin_confirms(client, monkeypatch):
+    student_headers = _student_headers(client, 215)
+    admin_headers = _admin_headers(client, monkeypatch)
+    _project, application = _seed_and_apply(client, student_headers)
+    assert client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    requested = client.post(
+        f"/me/applications/{application['id']}/leave-request",
+        headers=student_headers,
+    )
+    assert requested.status_code == 200
+    assert requested.json()["status"] == "leave_requested"
+    assert client.get("/me/team", headers=student_headers).status_code == 200
+
+    team = client.get(
+        f"/admin/projects/{_project['id']}/team", headers=admin_headers
+    ).json()
+    blocked_finalize = client.post(
+        f"/admin/projects/{_project['id']}/finalize",
+        headers=admin_headers,
+        json={
+            "result": {"title": "Результат", "description": "Готово"},
+            "confirmations": [
+                {
+                    "user_id": team["members"][0]["user"]["id"],
+                    "role": team["members"][0]["role_title"],
+                }
+            ],
+        },
+    )
+    assert blocked_finalize.status_code == 409
+
+    confirmed = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "rejected", "note": "Выход из команды подтверждён"},
+    )
+    assert confirmed.status_code == 200
+    assert client.get("/me/team", headers=student_headers).status_code == 404

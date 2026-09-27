@@ -14,6 +14,7 @@ from app.models.team import Team, TeamMember
 from app.models.user import User
 from app.services.applications import ApplicationError
 from app.services.applications import create_application as create_application_service
+from app.services.applications import request_team_leave as request_team_leave_service
 from app.services.applications import withdraw_application as withdraw_application_service
 
 PAGE_SIZE = 5
@@ -25,6 +26,7 @@ _STATUS_LABELS = {
     "accepted": "принята",
     "rejected": "отклонена",
     "withdrawn": "отменена",
+    "leave_requested": "запрошен выход из команды",
 }
 
 Buttons = list[list[dict]]
@@ -215,6 +217,16 @@ def build_my_applications(db, user: User) -> tuple[str, Buttons]:
                     }
                 ]
             )
+        elif app.status == ApplicationStatus.accepted:
+            buttons.append(
+                [
+                    {
+                        "type": "callback",
+                        "text": f"Запросить выход: {app.project.title}"[:40],
+                        "payload": encode("leave", app.id),
+                    }
+                ]
+            )
 
     buttons.append([_HOME_BUTTON])
     return "\n".join(lines), buttons
@@ -230,6 +242,21 @@ def build_withdraw_result(db, user: User, application_id: int) -> tuple[str, But
         }
         return friendly.get(exc.reason, "Не удалось отменить отклик."), [[_HOME_BUTTON]]
     return "Отклик отменён. На эту роль можно откликнуться снова.", [
+        [{"type": "callback", "text": "Мои отклики", "payload": encode("a")}],
+        [_HOME_BUTTON],
+    ]
+
+
+def build_leave_request_result(db, user: User, application_id: int) -> tuple[str, Buttons]:
+    try:
+        request_team_leave_service(db, user_id=user.id, application_id=application_id)
+    except ApplicationError as exc:
+        friendly = {
+            "application_not_found": "Отклик не найден.",
+            "not_accepted": "Для этого отклика нельзя запросить выход.",
+        }
+        return friendly.get(exc.reason, "Не удалось отправить запрос."), [[_HOME_BUTTON]]
+    return "Запрос отправлен организатору. До решения ты остаёшься в команде.", [
         [{"type": "callback", "text": "Мои отклики", "payload": encode("a")}],
         [_HOME_BUTTON],
     ]
@@ -257,7 +284,19 @@ def build_my_team(db, user: User) -> tuple[str, Buttons]:
     for member in team.members:
         lines.append(f"— {member.user.name} ({member.role_title})")
 
-    return "\n".join(lines), [[_HOME_BUTTON]]
+    buttons: Buttons = []
+    if team.project.team_chat_url:
+        buttons.append(
+            [
+                {
+                    "type": "link",
+                    "text": "Открыть чат команды",
+                    "url": team.project.team_chat_url,
+                }
+            ]
+        )
+    buttons.append([_HOME_BUTTON])
+    return "\n".join(lines), buttons
 
 
 def route(db, user: User, action: Action) -> tuple[str, Buttons]:
@@ -275,6 +314,8 @@ def route(db, user: User, action: Action) -> tuple[str, Buttons]:
             return build_my_applications(db, user)
         if action.screen == "withdraw":
             return build_withdraw_result(db, user, int(action.args[0]))
+        if action.screen == "leave":
+            return build_leave_request_result(db, user, int(action.args[0]))
         if action.screen == "t":
             return build_my_team(db, user)
     except (IndexError, ValueError):

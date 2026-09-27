@@ -84,3 +84,25 @@ def withdraw_application(db: Session, *, user_id: int, application_id: int) -> A
     db.commit()
     db.refresh(application)
     return application
+
+
+def request_team_leave(db: Session, *, user_id: int, application_id: int) -> Application:
+    application = db.scalar(
+        select(Application).where(
+            Application.id == application_id,
+            Application.user_id == user_id,
+        )
+    )
+    if application is None:
+        raise ApplicationError("application_not_found", "Application not found")
+    if application.status == ApplicationStatus.leave_requested:
+        return application
+    if application.status != ApplicationStatus.accepted:
+        raise ApplicationError(
+            "not_accepted",
+            "Only an accepted application can request team leave",
+        )
+    application.status = ApplicationStatus.leave_requested
+    db.commit()
+    db.refresh(application)
+    return application

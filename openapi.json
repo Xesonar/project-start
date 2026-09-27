@@ -632,6 +632,53 @@
         }
       }
     },
+    "/me/applications/{application_id}/leave-request": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Request Application Team Leave",
+        "operationId": "request_application_team_leave_me_applications__application_id__leave_request_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Application Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/team": {
       "get": {
         "tags": [
@@ -788,6 +835,108 @@
         ]
       }
     },
+    "/admin/projects/{project_id}/communication": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Project Communication",
+        "operationId": "get_project_communication_admin_projects__project_id__communication_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCommunicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Project Communication",
+        "operationId": "update_project_communication_admin_projects__project_id__communication_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCommunicationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCommunicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/projects/{project_id}/applications": {
       "get": {
         "tags": [
@@ -879,6 +1028,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminApplicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/applications/{application_id}/message": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Message Application Student",
+        "operationId": "message_application_student_admin_applications__application_id__message_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Application Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMessageCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMessageResult"
                 }
               }
             }
@@ -1332,6 +1538,17 @@
             ],
             "title": "Message"
           },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1349,6 +1566,7 @@
           "id",
           "status",
           "message",
+          "decision_note",
           "created_at",
           "project_role",
           "user"
@@ -1369,6 +1587,34 @@
           "password"
         ],
         "title": "AdminLoginRequest"
+      },
+      "AdminMessageCreate": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "AdminMessageCreate"
+      },
+      "AdminMessageResult": {
+        "properties": {
+          "delivered": {
+            "type": "boolean",
+            "title": "Delivered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "delivered"
+        ],
+        "title": "AdminMessageResult"
       },
       "AdminMetricsRead": {
         "properties": {
@@ -1504,6 +1750,17 @@
             ],
             "title": "Message"
           },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1521,6 +1778,7 @@
           "id",
           "status",
           "message",
+          "decision_note",
           "created_at",
           "project",
           "project_role"
@@ -1533,7 +1791,8 @@
           "pending",
           "accepted",
           "rejected",
-          "withdrawn"
+          "withdrawn",
+          "leave_requested"
         ],
         "title": "ApplicationStatus"
       },
@@ -1546,6 +1805,18 @@
               "rejected"
             ],
             "title": "Status"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
@@ -2097,6 +2368,44 @@
         "type": "object",
         "title": "ProfileUpdate"
       },
+      "ProjectCommunicationRead": {
+        "properties": {
+          "team_chat_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Chat Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_chat_url"
+        ],
+        "title": "ProjectCommunicationRead"
+      },
+      "ProjectCommunicationUpdate": {
+        "properties": {
+          "team_chat_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Chat Url"
+          }
+        },
+        "type": "object",
+        "title": "ProjectCommunicationUpdate"
+      },
       "ProjectCompleteRequest": {
         "properties": {
           "title": {
@@ -2181,6 +2490,18 @@
             "maxLength": 5000,
             "minLength": 3,
             "title": "Expected Result"
+          },
+          "team_chat_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Chat Url"
           },
           "roles": {
             "items": {
@@ -2720,6 +3041,17 @@
             },
             "type": "array",
             "title": "Members"
+          },
+          "team_chat_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Chat Url"
           }
         },
         "type": "object",

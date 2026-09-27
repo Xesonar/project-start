@@ -12,6 +12,7 @@ export interface Team {
   status: string;
   project: ProjectListItem;
   members: TeamMember[];
+  team_chat_url: string | null;
 }
 
 export const getMyTeam = () => apiRequest<Team>("/me/team");

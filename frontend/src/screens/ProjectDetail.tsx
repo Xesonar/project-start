@@ -37,6 +37,7 @@ export function ProjectDetailScreen() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [applyState, setApplyState] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [applicationMessage, setApplicationMessage] = useState("");
 
   const load = useCallback(() => {
     if (!id) return;
@@ -83,7 +84,10 @@ export function ProjectDetailScreen() {
     setApplyError(null);
     hapticSelect();
     try {
-      await createApplication(project.id, { project_role_id: selectedRoleId });
+      await createApplication(project.id, {
+        project_role_id: selectedRoleId,
+        message: applicationMessage.trim() || null,
+      });
       setApplications((current) => [
         ...(current ?? []).filter(
           (application) =>
@@ -95,7 +99,8 @@ export function ProjectDetailScreen() {
         {
           id: -selectedRoleId,
           status: "pending",
-          message: null,
+          message: applicationMessage.trim() || null,
+          decision_note: null,
           created_at: new Date().toISOString(),
           project,
           project_role: project.roles.find((role) => role.id === selectedRoleId)!,
@@ -239,14 +244,29 @@ export function ProjectDetailScreen() {
           Посмотреть мои отклики
         </Link>
       ) : (
-        <button
-          type="button"
-          onClick={handleApply}
-          disabled={selectedRoleId === null || applyState === "submitting"}
-          className="btn-primary mt-2"
-        >
-          {applyState === "submitting" ? "Отправляем..." : "Откликнуться"}
-        </button>
+        <div className="mt-2 flex flex-col gap-3">
+          <label className="text-sm font-medium text-slate-700">
+            Сообщение организатору <span className="font-normal text-slate-400">необязательно</span>
+            <textarea
+              value={applicationMessage}
+              onChange={(event) => setApplicationMessage(event.target.value.slice(0, 500))}
+              rows={3}
+              placeholder="Почему тебе интересен проект и чем ты можешь помочь"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+            <span className="mt-1 block text-right text-xs font-normal text-slate-400">
+              {applicationMessage.length}/500
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={selectedRoleId === null || applyState === "submitting"}
+            className="btn-primary"
+          >
+            {applyState === "submitting" ? "Отправляем..." : "Откликнуться"}
+          </button>
+        </div>
       )}
       {applyError && <p className="text-sm text-red-500">{applyError}</p>}
     </div>

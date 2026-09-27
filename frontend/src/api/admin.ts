@@ -23,6 +23,7 @@ export interface AdminApplication {
   id: number;
   status: ApplicationStatus;
   message: string | null;
+  decision_note: string | null;
   created_at: string;
   project_role: ProjectRole;
   user: AdminApplicant;
@@ -50,6 +51,7 @@ export interface AdminProjectCreatePayload {
   format: ProjectFormat;
   participant_limit: number;
   expected_result: string;
+  team_chat_url?: string | null;
   roles: { title: string; description?: string | null; slots: number }[];
   required_skills: { skill_id: number; required_level: SkillLevel }[];
 }
@@ -91,10 +93,33 @@ export const createAdminProject = (payload: AdminProjectCreatePayload) =>
 export const listProjectApplications = (projectId: number) =>
   apiRequest<AdminApplication[]>(`/admin/projects/${projectId}/applications`, { auth: "admin" });
 
-export const updateApplicationStatus = (applicationId: number, status: ApplicationStatus) =>
+export const updateApplicationStatus = (
+  applicationId: number,
+  status: Extract<ApplicationStatus, "accepted" | "rejected">,
+  note?: string | null,
+) =>
   apiRequest<AdminApplication>(`/admin/applications/${applicationId}`, {
     method: "PATCH",
-    body: { status },
+    body: { status, note },
+    auth: "admin",
+  });
+
+export const getProjectCommunication = (projectId: number) =>
+  apiRequest<{ team_chat_url: string | null }>(
+    `/admin/projects/${projectId}/communication`,
+    { auth: "admin" },
+  );
+
+export const updateProjectCommunication = (projectId: number, teamChatUrl: string | null) =>
+  apiRequest<{ team_chat_url: string | null }>(
+    `/admin/projects/${projectId}/communication`,
+    { method: "PATCH", body: { team_chat_url: teamChatUrl }, auth: "admin" },
+  );
+
+export const messageApplicationStudent = (applicationId: number, text: string) =>
+  apiRequest<{ delivered: boolean }>(`/admin/applications/${applicationId}/message`, {
+    method: "POST",
+    body: { text },
     auth: "admin",
   });
 

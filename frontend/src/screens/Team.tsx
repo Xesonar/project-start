@@ -4,15 +4,12 @@ import { ApiError } from "@/api/client";
 import { getMyTeam, type Team } from "@/api/team";
 import { getMaxWebApp } from "@/max/webapp";
 
-const TEAM_CHAT_URL = import.meta.env.VITE_TEAM_CHAT_URL;
-
-function openTeamChat() {
-  if (!TEAM_CHAT_URL) return;
+function openTeamChat(url: string) {
   const webApp = getMaxWebApp();
   if (webApp) {
-    webApp.openMaxLink(TEAM_CHAT_URL);
+    webApp.openMaxLink(url);
   } else {
-    window.open(TEAM_CHAT_URL, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 }
 
@@ -84,10 +81,10 @@ export function TeamScreen() {
             ))}
           </div>
 
-          {TEAM_CHAT_URL && (
+          {team.team_chat_url && (
             <button
               type="button"
-              onClick={openTeamChat}
+              onClick={() => openTeamChat(team.team_chat_url!)}
               className="btn-primary"
             >
               Открыть чат команды

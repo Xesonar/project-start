@@ -14,7 +14,15 @@ from app.models.skill import Skill
 from app.models.result import ParticipationConfirmation, ProjectResult
 from app.models.team import Team, TeamMember
 from app.models.user import User
-from app.schemas.admin import AdminApplicationRead, AdminMetricsRead, ApplicationStatusUpdate
+from app.schemas.admin import (
+    AdminApplicationRead,
+    AdminMessageCreate,
+    AdminMessageResult,
+    AdminMetricsRead,
+    ApplicationStatusUpdate,
+    ProjectCommunicationRead,
+    ProjectCommunicationUpdate,
+)
 from app.schemas.portfolio import (
     ConfirmationCreate,
     ConfirmationRead,
@@ -39,7 +47,9 @@ def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
     applications = db.scalar(select(func.count(Application.id))) or 0
     accepted = db.scalar(
         select(func.count(Application.id)).where(
-            Application.status == ApplicationStatus.accepted
+            Application.status.in_(
+                [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
+            )
         )
     ) or 0
     completed = db.scalar(
@@ -122,6 +132,36 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
     )
 
 
+@router.get(
+    "/projects/{project_id}/communication",
+    response_model=ProjectCommunicationRead,
+)
+def get_project_communication(
+    project_id: int, db: Session = Depends(get_db)
+) -> ProjectCommunicationRead:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    return ProjectCommunicationRead(team_chat_url=project.team_chat_url)
+
+
+@router.patch(
+    "/projects/{project_id}/communication",
+    response_model=ProjectCommunicationRead,
+)
+def update_project_communication(
+    project_id: int,
+    payload: ProjectCommunicationUpdate,
+    db: Session = Depends(get_db),
+) -> ProjectCommunicationRead:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    project.team_chat_url = payload.team_chat_url
+    db.commit()
+    return ProjectCommunicationRead(team_chat_url=project.team_chat_url)
+
+
 def _admin_application_query():
     return select(Application).options(
         selectinload(Application.project_role),
@@ -155,7 +195,15 @@ def update_application_status(
             "A withdrawn application cannot be processed",
         )
 
-    application.status = ApplicationStatus(payload.status)
+    previous_status = application.status
+    next_status = ApplicationStatus(payload.status)
+    if next_status == ApplicationStatus.rejected and not payload.note:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A rejection reason is required",
+        )
+    application.status = next_status
+    application.decision_note = payload.note
 
     if application.status == ApplicationStatus.accepted:
         project = db.scalar(
@@ -165,7 +213,9 @@ def update_application_status(
             select(func.count(Application.id)).where(
                 Application.id != application.id,
                 Application.project_role_id == application.project_role_id,
-                Application.status == ApplicationStatus.accepted,
+                Application.status.in_(
+                    [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
+                ),
             )
         ) or 0
         if accepted_for_role >= application.project_role.slots:
@@ -176,7 +226,9 @@ def update_application_status(
                 select(Application.user_id).where(
                     Application.id != application.id,
                     Application.project_id == application.project_id,
-                    Application.status == ApplicationStatus.accepted,
+                    Application.status.in_(
+                        [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
+                    ),
                 )
             )
         )
@@ -214,13 +266,18 @@ def update_application_status(
                     Application.project_id == application.project_id,
                     Application.user_id == application.user_id,
                     Application.status.in_(
-                        [ApplicationStatus.pending, ApplicationStatus.accepted]
+                        [
+                            ApplicationStatus.pending,
+                            ApplicationStatus.accepted,
+                            ApplicationStatus.leave_requested,
+                        ]
                     ),
                 )
             )
         )
         for other_application in other_applications:
             other_application.status = ApplicationStatus.rejected
+            other_application.decision_note = "Вы приняты на другую роль этого проекта."
 
         db.flush()
         member_count = db.scalar(
@@ -240,7 +297,9 @@ def update_application_status(
                         Application.id != application.id,
                         Application.project_id == application.project_id,
                         Application.user_id == application.user_id,
-                        Application.status == ApplicationStatus.accepted,
+                        Application.status.in_(
+                            [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
+                        ),
                     )
                     .order_by(Application.created_at.desc())
                 )
@@ -264,15 +323,77 @@ def update_application_status(
 
     # Best-effort — max_bot_client swallows its own errors and returns None,
     # so a MAX hiccup never turns a successful accept/reject into a 500.
-    verdict = "принят" if application.status == ApplicationStatus.accepted else "отклонён"
-    text = f"Твой отклик на «{application.project.title}» (роль: {application.project_role.title}) {verdict}."
+    if previous_status == ApplicationStatus.leave_requested:
+        if application.status == ApplicationStatus.accepted:
+            text = f"Организатор оставил тебя в команде проекта «{application.project.title}»."
+        else:
+            text = f"Запрос на выход из проекта «{application.project.title}» подтверждён."
+    elif application.status == ApplicationStatus.accepted:
+        text = (
+            f"Твой отклик на «{application.project.title}» "
+            f"(роль: {application.project_role.title}) принят."
+        )
+    else:
+        text = (
+            f"Твой отклик на «{application.project.title}» "
+            f"(роль: {application.project_role.title}) отклонён."
+        )
+    if payload.note:
+        text += f"\n\nКомментарий организатора: {payload.note}"
+    buttons = [[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]]
+    if application.status == ApplicationStatus.accepted and application.project.team_chat_url:
+        buttons.insert(
+            0,
+            [
+                {
+                    "type": "link",
+                    "text": "Вступить в чат команды",
+                    "url": application.project.team_chat_url,
+                }
+            ],
+        )
     max_bot_client.send_message(
         user_id=application.user.max_user_id,
         text=text,
-        buttons=[[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]],
+        buttons=buttons,
     )
 
     return db.scalar(_admin_application_query().where(Application.id == application_id))
+
+
+@router.post(
+    "/applications/{application_id}/message",
+    response_model=AdminMessageResult,
+)
+def message_application_student(
+    application_id: int,
+    payload: AdminMessageCreate,
+    db: Session = Depends(get_db),
+) -> AdminMessageResult:
+    application = db.scalar(_admin_application_query().where(Application.id == application_id))
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
+
+    buttons = None
+    if (
+        application.status in {ApplicationStatus.accepted, ApplicationStatus.leave_requested}
+        and application.project.team_chat_url
+    ):
+        buttons = [
+            [
+                {
+                    "type": "link",
+                    "text": "Открыть чат команды",
+                    "url": application.project.team_chat_url,
+                }
+            ]
+        ]
+    response = max_bot_client.send_message(
+        user_id=application.user.max_user_id,
+        text=f"Сообщение от организатора проекта «{application.project.title}»:\n\n{payload.text}",
+        buttons=buttons,
+    )
+    return AdminMessageResult(delivered=response is not None)
 
 
 @router.get("/projects/{project_id}/team", response_model=TeamRead)
@@ -341,6 +462,18 @@ def finalize_project(
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+
+    pending_leave_requests = db.scalar(
+        select(func.count(Application.id)).where(
+            Application.project_id == project_id,
+            Application.status == ApplicationStatus.leave_requested,
+        )
+    ) or 0
+    if pending_leave_requests:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Resolve all team leave requests before finalizing the project",
+        )
 
     user_ids = [item.user_id for item in payload.confirmations]
     if len(user_ids) != len(set(user_ids)):

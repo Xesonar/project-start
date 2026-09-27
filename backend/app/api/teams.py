@@ -13,7 +13,7 @@ router = APIRouter(tags=["teams"])
 
 
 @router.get("/me/team", response_model=TeamRead)
-def get_my_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Team:
+def get_my_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamRead:
     team_id = db.scalar(
         select(TeamMember.team_id)
         .join(Team, Team.id == TeamMember.team_id)
@@ -35,4 +35,5 @@ def get_my_team(user: User = Depends(get_current_user), db: Session = Depends(ge
             selectinload(Team.members).selectinload(TeamMember.user),
         )
     )
-    return team
+    response = TeamRead.model_validate(team)
+    return response.model_copy(update={"team_chat_url": team.project.team_chat_url})

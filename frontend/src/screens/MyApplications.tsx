@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import {
   getMyApplications,
+  requestTeamLeave,
   withdrawApplication,
   type Application,
   type ApplicationStatus,
@@ -14,6 +15,7 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   accepted: "Принята",
   rejected: "Отклонена",
   withdrawn: "Отменена",
+  leave_requested: "Запрошен выход",
 };
 
 const STATUS_STYLES: Record<ApplicationStatus, string> = {
@@ -21,6 +23,7 @@ const STATUS_STYLES: Record<ApplicationStatus, string> = {
   accepted: "bg-emerald-50 text-emerald-700",
   rejected: "bg-slate-100 text-slate-500",
   withdrawn: "bg-slate-100 text-slate-500",
+  leave_requested: "bg-violet-50 text-violet-700",
 };
 
 export function MyApplicationsScreen() {
@@ -56,6 +59,24 @@ export function MyApplicationsScreen() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отменить отклик");
+    } finally {
+      setWithdrawingId(null);
+    }
+  };
+
+  const handleLeaveRequest = async (application: Application) => {
+    if (!window.confirm(`Запросить выход из команды проекта «${application.project.title}»?`)) {
+      return;
+    }
+    setWithdrawingId(application.id);
+    setError(null);
+    try {
+      const updated = await requestTeamLeave(application.id);
+      setApplications((current) =>
+        current?.map((item) => (item.id === application.id ? updated : item)) ?? null,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отправить запрос на выход");
     } finally {
       setWithdrawingId(null);
     }
@@ -106,6 +127,11 @@ export function MyApplicationsScreen() {
                 >
                   {STATUS_LABELS[app.status]}
                 </span>
+                {app.decision_note && (
+                  <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    Комментарий организатора: {app.decision_note}
+                  </p>
+                )}
               </Link>
               {app.status === "pending" && (
                 <button
@@ -115,6 +141,16 @@ export function MyApplicationsScreen() {
                   className="mt-3 text-xs font-medium text-red-600 underline disabled:opacity-50"
                 >
                   {withdrawingId === app.id ? "Отменяем…" : "Отменить отклик"}
+                </button>
+              )}
+              {app.status === "accepted" && (
+                <button
+                  type="button"
+                  disabled={withdrawingId === app.id}
+                  onClick={() => void handleLeaveRequest(app)}
+                  className="mt-3 text-xs font-medium text-slate-500 underline disabled:opacity-50"
+                >
+                  {withdrawingId === app.id ? "Отправляем…" : "Запросить выход из команды"}
                 </button>
               )}
             </div>

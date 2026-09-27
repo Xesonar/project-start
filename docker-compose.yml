@@ -31,7 +31,6 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-        VITE_TEAM_CHAT_URL: ${VITE_TEAM_CHAT_URL:-}
     restart: unless-stopped
     depends_on:
       - backend

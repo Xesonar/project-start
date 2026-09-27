@@ -28,3 +28,4 @@ class TeamRead(BaseModel):
     status: str
     project: ProjectListItem
     members: list[TeamMemberRead]
+    team_chat_url: str | None = None

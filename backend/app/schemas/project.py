@@ -81,6 +81,7 @@ class ProjectCreate(BaseModel):
     format: ProjectFormat
     participant_limit: int = Field(ge=1, le=100)
     expected_result: str = Field(min_length=3, max_length=5000)
+    team_chat_url: str | None = Field(default=None, max_length=1024)
     roles: list[ProjectRoleCreate] = Field(min_length=1, max_length=20)
     required_skills: list[ProjectSkillCreate] = Field(default_factory=list, max_length=50)
 
@@ -91,4 +92,10 @@ class ProjectCreate(BaseModel):
             raise ValueError("Role titles must be unique")
         if sum(role.slots for role in self.roles) < self.participant_limit:
             raise ValueError("Role slots must cover the participant limit")
+        if self.team_chat_url is not None:
+            self.team_chat_url = self.team_chat_url.strip() or None
+            if self.team_chat_url is not None and not self.team_chat_url.startswith(
+                "https://max.ru/"
+            ):
+                raise ValueError("Team chat URL must start with https://max.ru/")
         return self

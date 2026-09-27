@@ -17,6 +17,7 @@ class ApplicationRead(BaseModel):
     id: int
     status: ApplicationStatus
     message: str | None
+    decision_note: str | None
     created_at: datetime
     project: ProjectListItem
     project_role: ProjectRoleRead

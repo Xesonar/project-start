@@ -60,6 +60,7 @@ export function AdminProjectCreate() {
         format: String(form.get("format")) as ProjectFormat,
         participant_limit: Number(form.get("participant_limit")),
         expected_result: String(form.get("expected_result")),
+        team_chat_url: String(form.get("team_chat_url") || "").trim() || null,
         roles: roles.map((role) => ({ ...role, description: role.description || null })),
         required_skills: requiredSkills,
       };
@@ -102,6 +103,15 @@ export function AdminProjectCreate() {
         <Field label="Срок"><input required name="deadline" placeholder="14 дней" className="admin-input" /></Field>
         <Field label="Лимит участников"><input required name="participant_limit" type="number" min={1} max={100} defaultValue={3} className="admin-input" /></Field>
         <Field label="Ожидаемый результат" wide><textarea required minLength={3} name="expected_result" rows={2} className="admin-input" /></Field>
+        <Field label="Ссылка на чат команды в MAX" wide>
+          <input
+            type="url"
+            name="team_chat_url"
+            placeholder="https://max.ru/..."
+            pattern="https://max\.ru/.*"
+            className="admin-input"
+          />
+        </Field>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
