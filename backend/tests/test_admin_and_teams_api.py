@@ -81,6 +81,40 @@ def test_admin_can_create_project(client, monkeypatch):
     assert body["required_skills"][0]["skill"]["id"] == skills[0]["id"]
 
 
+def test_admin_can_publish_draft_project(client, monkeypatch):
+    from app.seed.run_seed import main as run_seed
+
+    run_seed()
+    headers = _admin_headers(client, monkeypatch)
+    organization_id = client.get("/admin/organizations", headers=headers).json()[0]["id"]
+    skill_id = client.get("/skills").json()[0]["id"]
+    payload = {
+        "organization_id": organization_id,
+        "title": "Черновик для публикации",
+        "description": "Проект не должен появляться в каталоге до публикации.",
+        "difficulty": "beginner",
+        "status": "draft",
+        "deadline": "14 дней",
+        "format": "hybrid",
+        "participant_limit": 2,
+        "expected_result": "Рабочий прототип",
+        "roles": [{"title": "Developer", "slots": 2}],
+        "required_skills": [{"skill_id": skill_id, "required_level": "beginner"}],
+    }
+    created = client.post("/admin/projects", headers=headers, json=payload)
+    assert created.status_code == 201
+    project_id = created.json()["id"]
+    assert client.get(f"/projects/{project_id}").status_code == 404
+
+    published = client.post(f"/admin/projects/{project_id}/publish", headers=headers)
+    assert published.status_code == 200
+    assert published.json()["status"] == "open"
+    assert client.get(f"/projects/{project_id}").status_code == 200
+
+    repeated = client.post(f"/admin/projects/{project_id}/publish", headers=headers)
+    assert repeated.status_code == 409
+
+
 def test_admin_rejects_project_when_role_slots_cannot_fill_team(client, monkeypatch):
     from app.seed.run_seed import main as run_seed
 
@@ -146,9 +180,12 @@ def test_admin_metrics_expose_measurable_funnel(client, monkeypatch):
     response = client.get("/admin/metrics", headers=admin_headers)
     assert response.status_code == 200
     metrics = response.json()
-    assert metrics["students"] >= 1
+    assert metrics["students"] == 1
+    assert metrics["assessed_students"] == 0
     assert metrics["applications"] == 1
     assert metrics["accepted_applications"] == 1
+    assert metrics["completed_projects"] == 0
+    assert metrics["confirmed_participations"] == 0
     assert metrics["acceptance_rate"] == 100.0
 
 
@@ -394,38 +431,74 @@ def test_filling_team_rejects_remaining_pending_applications(client, monkeypatch
     assert remaining["decision_note"] == "Команда проекта уже сформирована."
 
 
-def test_student_cannot_apply_to_second_project_while_in_active_team(client, monkeypatch):
+def test_student_can_join_three_active_projects_but_not_a_fourth(client, monkeypatch):
     student_headers = _student_headers(client, 219)
     admin_headers = _admin_headers(client, monkeypatch)
-    project, application = _seed_and_apply(client, student_headers)
-    another_project = next(
-        item for item in client.get("/projects").json() if item["id"] != project["id"]
-    )
-    another_detail = client.get(f"/projects/{another_project['id']}").json()
-    pending_elsewhere = client.post(
-        f"/projects/{another_project['id']}/applications",
+    first_project, first_application = _seed_and_apply(client, student_headers)
+    other_projects = [
+        item for item in client.get("/projects").json() if item["id"] != first_project["id"]
+    ][:3]
+    details = [client.get(f"/projects/{item['id']}").json() for item in other_projects]
+
+    second_application = client.post(
+        f"/projects/{details[0]['id']}/applications",
         headers=student_headers,
-        json={"project_role_id": another_detail["roles"][0]["id"]},
+        json={"project_role_id": details[0]["roles"][0]["id"]},
     )
-    assert pending_elsewhere.status_code == 201
+    fourth_application = client.post(
+        f"/projects/{details[2]['id']}/applications",
+        headers=student_headers,
+        json={"project_role_id": details[2]["roles"][0]["id"]},
+    )
+    assert second_application.status_code == 201
+    assert fourth_application.status_code == 201
 
     assert client.patch(
-        f"/admin/applications/{application['id']}",
+        f"/admin/applications/{first_application['id']}",
         headers=admin_headers,
         json={"status": "accepted"},
     ).status_code == 200
-    other_after_acceptance = next(
+    assert client.patch(
+        f"/admin/applications/{second_application.json()['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    fourth_before_limit = next(
         item
         for item in client.get("/me/applications", headers=student_headers).json()
-        if item["id"] == pending_elsewhere.json()["id"]
+        if item["id"] == fourth_application.json()["id"]
     )
-    assert other_after_acceptance["status"] == "rejected"
-    assert other_after_acceptance["decision_note"] == "Вы уже приняты в другую активную команду."
+    assert fourth_before_limit["status"] == "pending"
+
+    third_application = client.post(
+        f"/projects/{details[1]['id']}/applications",
+        headers=student_headers,
+        json={"project_role_id": details[1]["roles"][0]["id"]},
+    )
+    assert third_application.status_code == 201
+    assert client.patch(
+        f"/admin/applications/{third_application.json()['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    teams = client.get("/me/teams", headers=student_headers)
+    assert teams.status_code == 200
+    assert len([team for team in teams.json() if team["status"] == "active"]) == 3
+
+    fourth_after_limit = next(
+        item
+        for item in client.get("/me/applications", headers=student_headers).json()
+        if item["id"] == fourth_application.json()["id"]
+    )
+    assert fourth_after_limit["status"] == "rejected"
+    assert fourth_after_limit["decision_note"] == "Достигнут лимит: 3 активных проекта."
 
     blocked = client.post(
-        f"/projects/{another_project['id']}/applications",
+        f"/projects/{details[2]['id']}/applications",
         headers=student_headers,
-        json={"project_role_id": another_detail["roles"][0]["id"]},
+        json={"project_role_id": details[2]["roles"][0]["id"]},
     )
     assert blocked.status_code == 409
 

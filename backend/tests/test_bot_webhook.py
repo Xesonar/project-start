@@ -3,7 +3,11 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.user import User
+from app.models.application import Application
+from app.models.enums import ApplicationStatus, ProjectStatus
+from app.models.project import Project
 from app.seed.run_seed import main as run_seed
+from app.bot.screens import build_apply_result, build_project_detail
 from app.services import max_bot_client
 from tests.test_max_auth import build_init_data
 
@@ -199,11 +203,50 @@ def test_message_callback_apply_creates_application(client, monkeypatch):
     assert resp.status_code == 200
     assert "отправлен" in calls[0]["json"]["message"]["text"]
 
-    from app.models.application import Application
-
     db = SessionLocal()
     try:
         app_row = db.scalar(select(Application).where(Application.project_id == project.id))
         assert app_row is not None
+    finally:
+        db.close()
+
+
+def test_bot_allows_reapplying_after_rejection(client):
+    run_seed()
+    db = SessionLocal()
+    try:
+        project = db.scalar(
+            select(Project)
+            .where(Project.status == ProjectStatus.open)
+            .order_by(Project.id.desc())
+        )
+        user = User(max_user_id=806, name="Студент")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        role = project.roles[0]
+
+        first_text, _ = build_apply_result(db, user, project.id, role.id)
+        assert "отправлен" in first_text
+        application = db.scalar(
+            select(Application).where(
+                Application.user_id == user.id,
+                Application.project_id == project.id,
+                Application.project_role_id == role.id,
+            )
+        )
+        application.status = ApplicationStatus.rejected
+        application.decision_note = "Нужно уточнить опыт"
+        db.commit()
+
+        _detail_text, buttons = build_project_detail(db, user, project.id, 0)
+        payloads = [button.get("payload") for row in buttons for button in row]
+        assert f"apply:{project.id}:{role.id}" in payloads
+
+        repeated_text, _ = build_apply_result(db, user, project.id, role.id)
+        assert "отправлен" in repeated_text
+        db.refresh(application)
+        assert application.status == ApplicationStatus.pending
+        assert application.decision_note is None
     finally:
         db.close()

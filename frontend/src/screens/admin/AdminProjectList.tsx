@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { listAdminProjects } from "@/api/admin";
+import { listAdminProjects, publishAdminProject } from "@/api/admin";
 import { DifficultyBadge } from "@/components/DifficultyBadge";
 import type { ProjectListItem } from "@/api/projects";
 
@@ -15,6 +15,22 @@ const STATUS_LABELS: Record<ProjectListItem["status"], string> = {
 export function AdminProjectList() {
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<number | null>(null);
+
+  const publish = async (projectId: number) => {
+    setPublishingId(projectId);
+    setError(null);
+    try {
+      const updated = await publishAdminProject(projectId);
+      setProjects((current) =>
+        current?.map((project) => (project.id === projectId ? updated : project)) ?? null,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось опубликовать проект");
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   useEffect(() => {
     listAdminProjects()
@@ -48,20 +64,29 @@ export function AdminProjectList() {
       {projects && (
         <div className="flex flex-col gap-2">
           {projects.map((project) => (
-            <Link
+            <div
               key={project.id}
-              to={`/admin/projects/${project.id}`}
               className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-300"
             >
-              <div>
+              <Link to={`/admin/projects/${project.id}`} className="min-w-0 flex-1">
                 <p className="text-xs text-slate-400">{project.organization.name}</p>
-                <p className="text-sm font-medium">{project.title}</p>
-              </div>
+                <p className="truncate text-sm font-medium">{project.title}</p>
+              </Link>
               <div className="flex items-center gap-2">
                 <DifficultyBadge difficulty={project.difficulty} />
                 <span className="text-xs text-slate-500">{STATUS_LABELS[project.status]}</span>
+                {project.status === "draft" && (
+                  <button
+                    type="button"
+                    disabled={publishingId === project.id}
+                    onClick={() => void publish(project.id)}
+                    className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    {publishingId === project.id ? "Публикуем…" : "Опубликовать"}
+                  </button>
+                )}
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

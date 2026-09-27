@@ -68,7 +68,11 @@ export function ProjectDetailScreen() {
         setRecommendationScore(
           recommendations.find((item) => item.id === data.id)?.score ?? null,
         );
-        setSelectedRoleId(data.roles.find((role) => !appliedRoleIds.has(role.id))?.id ?? null);
+        setSelectedRoleId(
+          data.status === "open"
+            ? (data.roles.find((role) => !appliedRoleIds.has(role.id))?.id ?? null)
+            : null,
+        );
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка загрузки"));
     // Skills load in parallel — the match ring is meaningless without them,
@@ -181,6 +185,11 @@ export function ProjectDetailScreen() {
 
       <section>
         <h2 className="mb-2 text-sm font-medium text-slate-700">Выбери роль</h2>
+        {project.status !== "open" && (
+          <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+            Набор в этот проект уже закрыт.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {project.roles.map((role) => {
             const existingApplication = applications?.find(
@@ -193,7 +202,11 @@ export function ProjectDetailScreen() {
             <button
               key={role.id}
               type="button"
-              disabled={applyState === "done" || Boolean(existingApplication)}
+              disabled={
+                project.status !== "open" ||
+                applyState === "done" ||
+                Boolean(existingApplication)
+              }
               aria-pressed={selectedRoleId === role.id}
               onClick={() => { hapticSelect(); setSelectedRoleId(role.id); }}
               className={`rounded-lg border p-3 text-left transition active:scale-[0.99] disabled:opacity-60 ${
@@ -232,7 +245,11 @@ export function ProjectDetailScreen() {
         </div>
       </section>
 
-      {applyState === "done" ? (
+      {project.status !== "open" ? (
+        <Link to="/catalog" className="btn-primary mt-2 text-center">
+          Найти открытый проект
+        </Link>
+      ) : applyState === "done" ? (
         <div className="flex flex-col items-center gap-3 rounded-lg bg-ok-50 px-4 py-5 text-center animate-scale-in">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ok-600 text-2xl text-white">
             ✓

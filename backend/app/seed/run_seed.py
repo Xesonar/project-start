@@ -114,9 +114,12 @@ def seed_demo_portfolio(db: Session) -> None:
             format=ProjectFormat.hybrid,
             participant_limit=4,
             expected_result="Рабочий прототип мини-приложения и презентация.",
+            is_demo=True,
         )
         db.add(project)
         db.flush()
+    else:
+        project.is_demo = True
 
     project_result = db.scalar(
         select(ProjectResult).where(ProjectResult.project_id == project.id)

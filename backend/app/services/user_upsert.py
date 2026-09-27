@@ -16,6 +16,7 @@ def upsert_max_user(
     last_name: str | None = None,
     username: str | None = None,
     avatar_url: str | None = None,
+    is_demo: bool = False,
 ) -> User:
     """Creates or updates a User from MAX-provided profile fields.
 
@@ -38,10 +39,12 @@ def upsert_max_user(
             name=name,
             avatar_url=safe_avatar_url,
             role=UserRole.student,
+            is_demo=is_demo,
         )
         db.add(user)
     else:
         user.name = name
+        user.is_demo = is_demo
         if avatar_url is not None:
             user.avatar_url = safe_avatar_url
     db.commit()
@@ -75,6 +78,7 @@ def ensure_demo_user(
         db,
         max_user_id=max_user_id if max_user_id is not None else settings.demo_max_user_id,
         first_name=settings.demo_user_name,
+        is_demo=True,
     )
 
     if user.profile is None:

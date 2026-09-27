@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,9 @@ from app.models.application import Application
 from app.models.enums import ApplicationStatus, ProjectStatus
 from app.models.project import Project, ProjectRole
 from app.models.team import Team, TeamMember
+
+
+MAX_ACTIVE_PROJECTS = 3
 
 
 class ApplicationError(Exception):
@@ -29,15 +32,15 @@ def create_application(
     if project.status != ProjectStatus.open:
         raise ApplicationError("project_not_open", "Project is not open for applications")
 
-    active_team_id = db.scalar(
-        select(TeamMember.team_id)
+    active_team_count = db.scalar(
+        select(func.count(func.distinct(TeamMember.team_id)))
         .join(Team, Team.id == TeamMember.team_id)
         .where(TeamMember.user_id == user_id, Team.status == "active")
-    )
-    if active_team_id is not None:
+    ) or 0
+    if active_team_count >= MAX_ACTIVE_PROJECTS:
         raise ApplicationError(
             "already_in_team",
-            "You already have an active project team",
+            f"You already participate in {MAX_ACTIVE_PROJECTS} active projects",
         )
 
     role = db.get(ProjectRole, project_role_id)

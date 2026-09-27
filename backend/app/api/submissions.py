@@ -16,8 +16,10 @@ from app.schemas.submission import SubmissionCreate, SubmissionRead
 router = APIRouter(tags=["submissions"])
 
 
-def _require_active_membership(db: Session, *, project_id: int, user_id: int) -> None:
-    project = db.get(Project, project_id)
+def _require_active_membership(db: Session, *, project_id: int, user_id: int) -> Project:
+    project = db.scalar(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
     if project.status == ProjectStatus.completed:
@@ -33,6 +35,7 @@ def _require_active_membership(db: Session, *, project_id: int, user_id: int) ->
     )
     if membership is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You are not an active team member")
+    return project
 
 
 @router.get(
@@ -70,7 +73,7 @@ def submit_project_result(
         select(ProjectSubmission).where(
             ProjectSubmission.project_id == project_id,
             ProjectSubmission.user_id == user.id,
-        )
+        ).with_for_update()
     )
     if submission is None:
         submission = ProjectSubmission(

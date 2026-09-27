@@ -16,3 +16,4 @@ export interface Team {
 }
 
 export const getMyTeam = () => apiRequest<Team>("/me/team");
+export const getMyTeams = () => apiRequest<Team[]>("/me/teams");

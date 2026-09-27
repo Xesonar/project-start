@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, Enum, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -14,6 +14,7 @@ class User(Base):
     max_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(String(1024), default=None)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role"), default=UserRole.student
     )

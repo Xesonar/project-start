@@ -89,6 +89,12 @@ export const createAdminProject = (payload: AdminProjectCreatePayload) =>
     auth: "admin",
   });
 
+export const publishAdminProject = (projectId: number) =>
+  apiRequest<ProjectListItem>(`/admin/projects/${projectId}/publish`, {
+    method: "POST",
+    auth: "admin",
+  });
+
 export const listProjectApplications = (projectId: number) =>
   apiRequest<AdminApplication[]>(`/admin/projects/${projectId}/applications`, { auth: "admin" });
 

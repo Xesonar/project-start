@@ -40,30 +40,48 @@ from app.schemas.project import OrganizationRead, ProjectCreate, ProjectRead, Pr
 from app.schemas.team import TeamRead
 from app.schemas.submission import AdminSubmissionRead, SubmissionReview
 from app.services import max_bot_client
+from app.services.applications import MAX_ACTIVE_PROJECTS
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 @router.get("/metrics", response_model=AdminMetricsRead)
 def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
-    students = db.scalar(select(func.count(User.id))) or 0
+    students = db.scalar(select(func.count(User.id)).where(User.is_demo.is_(False))) or 0
     assessed = db.scalar(
-        select(func.count(StudentProfile.user_id)).where(
+        select(func.count(StudentProfile.user_id))
+        .join(User, User.id == StudentProfile.user_id)
+        .where(
+            User.is_demo.is_(False),
             StudentProfile.preferred_role.is_not(None)
         )
     ) or 0
-    applications = db.scalar(select(func.count(Application.id))) or 0
+    applications = db.scalar(
+        select(func.count(Application.id))
+        .join(User, User.id == Application.user_id)
+        .where(User.is_demo.is_(False))
+    ) or 0
     accepted = db.scalar(
-        select(func.count(Application.id)).where(
+        select(func.count(Application.id))
+        .join(User, User.id == Application.user_id)
+        .where(
+            User.is_demo.is_(False),
             Application.status.in_(
                 [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
             )
         )
     ) or 0
     completed = db.scalar(
-        select(func.count(Project.id)).where(Project.status == ProjectStatus.completed)
+        select(func.count(Project.id)).where(
+            Project.status == ProjectStatus.completed,
+            Project.is_demo.is_(False),
+        )
     ) or 0
-    confirmations = db.scalar(select(func.count(ParticipationConfirmation.id))) or 0
+    confirmations = db.scalar(
+        select(func.count(ParticipationConfirmation.id))
+        .join(User, User.id == ParticipationConfirmation.user_id)
+        .where(User.is_demo.is_(False))
+    ) or 0
     return AdminMetricsRead(
         students=students,
         assessed_students=assessed,
@@ -132,6 +150,31 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
     return db.scalar(
         select(Project)
         .where(Project.id == project.id)
+        .options(
+            selectinload(Project.organization),
+            selectinload(Project.roles),
+            selectinload(Project.required_skills).selectinload(ProjectSkill.skill),
+        )
+    )
+
+
+@router.post("/projects/{project_id}/publish", response_model=ProjectListItem)
+def publish_project(project_id: int, db: Session = Depends(get_db)) -> Project:
+    project = db.scalar(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    if project.status != ProjectStatus.draft:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Only a draft project can be published",
+        )
+    project.status = ProjectStatus.open
+    db.commit()
+    return db.scalar(
+        select(Project)
+        .where(Project.id == project_id)
         .options(
             selectinload(Project.organization),
             selectinload(Project.roles),
@@ -239,19 +282,23 @@ def update_application_status(
 
     if application.status == ApplicationStatus.accepted:
         if previous_status == ApplicationStatus.pending:
-            other_active_team = db.scalar(
-                select(Team.id)
+            # Serialize decisions for the same student across different
+            # projects. Project-row locks alone do not protect the global
+            # three-active-project limit.
+            db.scalar(select(User.id).where(User.id == application.user_id).with_for_update())
+            active_team_count = db.scalar(
+                select(func.count(func.distinct(Team.id)))
                 .join(TeamMember, TeamMember.team_id == Team.id)
                 .where(
                     TeamMember.user_id == application.user_id,
                     Team.status == "active",
                     Team.project_id != application.project_id,
                 )
-            )
-            if other_active_team is not None:
+            ) or 0
+            if active_team_count >= MAX_ACTIVE_PROJECTS:
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
-                    "Student already belongs to another active project",
+                    f"Student already belongs to {MAX_ACTIVE_PROJECTS} active projects",
                 )
         accepted_for_role = db.scalar(
             select(func.count(Application.id)).where(
@@ -323,23 +370,31 @@ def update_application_status(
             other_application.status = ApplicationStatus.rejected
             other_application.decision_note = "Вы приняты на другую роль этого проекта."
 
-        # Pending applications elsewhere can no longer be accepted while this
-        # membership is active. Close them immediately instead of leaving the
-        # student and other organizers with misleading "under review" cards.
-        other_project_applications = list(
-            db.scalars(
-                select(Application).where(
-                    Application.user_id == application.user_id,
-                    Application.project_id != application.project_id,
-                    Application.status == ApplicationStatus.pending,
+        db.flush()
+        active_team_count = db.scalar(
+            select(func.count(func.distinct(Team.id)))
+            .join(TeamMember, TeamMember.team_id == Team.id)
+            .where(
+                TeamMember.user_id == application.user_id,
+                Team.status == "active",
+            )
+        ) or 0
+        if active_team_count >= MAX_ACTIVE_PROJECTS:
+            other_project_applications = list(
+                db.scalars(
+                    select(Application).where(
+                        Application.user_id == application.user_id,
+                        Application.project_id != application.project_id,
+                        Application.status == ApplicationStatus.pending,
+                    )
                 )
             )
-        )
-        for other_application in other_project_applications:
-            other_application.status = ApplicationStatus.rejected
-            other_application.decision_note = "Вы уже приняты в другую активную команду."
+            for other_application in other_project_applications:
+                other_application.status = ApplicationStatus.rejected
+                other_application.decision_note = (
+                    f"Достигнут лимит: {MAX_ACTIVE_PROJECTS} активных проекта."
+                )
 
-        db.flush()
         member_count = db.scalar(
             select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
         ) or 0
@@ -460,13 +515,20 @@ def review_project_submission(
     payload: SubmissionReview,
     db: Session = Depends(get_db),
 ) -> ProjectSubmission:
+    submission_ref = db.get(ProjectSubmission, submission_id)
+    if submission_ref is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+    db.scalar(
+        select(Project.id)
+        .where(Project.id == submission_ref.project_id)
+        .with_for_update()
+    )
     submission = db.scalar(
         select(ProjectSubmission)
         .where(ProjectSubmission.id == submission_id)
+        .with_for_update()
         .options(selectinload(ProjectSubmission.user), selectinload(ProjectSubmission.project))
     )
-    if submission is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
     if submission.project.status == ProjectStatus.completed:
         raise HTTPException(status.HTTP_409_CONFLICT, "Completed project submissions are locked")
     if submission.status != ProjectSubmissionStatus.submitted:
@@ -569,7 +631,9 @@ def finalize_project(
     project_id: int, payload: ProjectFinalizeRequest, db: Session = Depends(get_db)
 ) -> Project:
     """Atomically save the result, verified contributions and completed state."""
-    project = db.get(Project, project_id)
+    project = db.scalar(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
     if project.status == ProjectStatus.completed:
@@ -613,7 +677,7 @@ def finalize_project(
             select(ProjectSubmission).where(
                 ProjectSubmission.project_id == project_id,
                 ProjectSubmission.user_id.in_(team_user_ids),
-            )
+            ).with_for_update()
         )
     )
     submissions_by_user = {item.user_id: item for item in submissions}

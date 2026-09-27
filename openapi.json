@@ -679,6 +679,36 @@
         }
       }
     },
+    "/me/teams": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Get My Teams",
+        "operationId": "get_my_teams_me_teams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamRead"
+                  },
+                  "type": "array",
+                  "title": "Response Get My Teams Me Teams Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/me/team": {
       "get": {
         "tags": [
@@ -833,6 +863,53 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/admin/projects/{project_id}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Publish Project",
+        "operationId": "publish_project_admin_projects__project_id__publish_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/projects/{project_id}/communication": {

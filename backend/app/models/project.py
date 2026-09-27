@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -26,6 +26,7 @@ class Project(Base):
     format: Mapped[ProjectFormat] = mapped_column(Enum(ProjectFormat, name="project_format"))
     participant_limit: Mapped[int] = mapped_column(Integer)
     expected_result: Mapped[str] = mapped_column(Text)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     team_chat_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

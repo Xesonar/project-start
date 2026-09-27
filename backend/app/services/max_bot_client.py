@@ -63,6 +63,14 @@ def answer_callback(*, callback_id: str, text: str, buttons: list[list[dict]] | 
             timeout=_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
+        payload = response.json()
+        if payload.get("success") is not True:
+            logger.error(
+                "MAX answer_callback returned success=false (callback_id=%s): %s",
+                callback_id,
+                payload,
+            )
+            return False
         return True
     except Exception:
         logger.exception("MAX answer_callback failed (callback_id=%s)", callback_id)
@@ -78,7 +86,11 @@ def subscribe(*, webhook_url: str, secret: str, update_types: list[str]) -> bool
             timeout=_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        logger.info("MAX webhook subscription response: %s", response.json())
+        payload = response.json()
+        if payload.get("success") is not True:
+            logger.error("MAX webhook subscription returned success=false: %s", payload)
+            return False
+        logger.info("MAX webhook subscription response: %s", payload)
         return True
     except Exception:
         logger.exception("MAX webhook subscription failed")

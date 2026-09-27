@@ -139,7 +139,13 @@ def build_project_detail(db, user: User, project_id: int, page: int) -> tuple[st
             select(Application.project_role_id).where(
                 Application.user_id == user.id,
                 Application.project_id == project_id,
-                Application.status != ApplicationStatus.withdrawn,
+                Application.status.in_(
+                    [
+                        ApplicationStatus.pending,
+                        ApplicationStatus.accepted,
+                        ApplicationStatus.leave_requested,
+                    ]
+                ),
             )
         )
     )
@@ -184,6 +190,7 @@ def build_apply_result(db, user: User, project_id: int, role_id: int) -> tuple[s
             "project_not_open": "Проект уже закрыт для откликов.",
             "invalid_role": "Эта роль недоступна.",
             "duplicate": "Ты уже откликался на эту роль.",
+            "already_in_team": "Ты уже участвуешь в трёх активных проектах.",
         }
         return friendly.get(exc.reason, "Не удалось отправить отклик."), [back_row]
 
@@ -263,38 +270,57 @@ def build_leave_request_result(db, user: User, application_id: int) -> tuple[str
 
 
 def build_my_team(db, user: User) -> tuple[str, Buttons]:
-    team_member = db.scalar(
-        select(TeamMember)
-        .join(Team, Team.id == TeamMember.team_id)
-        .where(TeamMember.user_id == user.id, Team.status == "active")
-        .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
-    )
-    if team_member is None:
-        return "Пока ты не в команде — дождись решения по своим откликам.", [[_HOME_BUTTON]]
-
-    team = db.scalar(
-        select(Team)
-        .where(Team.id == team_member.team_id)
-        .options(
-            selectinload(Team.project).selectinload(Project.organization),
-            selectinload(Team.members).selectinload(TeamMember.user),
+    team_members = list(
+        db.scalars(
+            select(TeamMember)
+            .join(Team, Team.id == TeamMember.team_id)
+            .where(TeamMember.user_id == user.id, Team.status == "active")
+            .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
         )
     )
-    lines = [team.project.title, team.project.organization.name, "", "Команда:"]
-    for member in team.members:
-        lines.append(f"— {member.user.name} ({member.role_title})")
+    showing_completed = False
+    if not team_members:
+        completed_member = db.scalar(
+            select(TeamMember)
+            .join(Team, Team.id == TeamMember.team_id)
+            .where(TeamMember.user_id == user.id, Team.status == "completed")
+            .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
+        )
+        if completed_member is None:
+            return "Пока ты не в команде — дождись решения по своим откликам.", [[_HOME_BUTTON]]
+        team_members = [completed_member]
+        showing_completed = True
 
+    teams = list(
+        db.scalars(
+            select(Team)
+            .where(Team.id.in_([member.team_id for member in team_members]))
+            .options(
+                selectinload(Team.project).selectinload(Project.organization),
+                selectinload(Team.members).selectinload(TeamMember.user),
+            )
+        )
+    )
+    teams_by_id = {team.id: team for team in teams}
+    ordered_teams = [teams_by_id[member.team_id] for member in team_members]
+
+    lines = ["Последняя завершённая команда:" if showing_completed else "Мои команды:"]
     buttons: Buttons = []
-    if team.project.team_chat_url:
-        buttons.append(
-            [
-                {
-                    "type": "link",
-                    "text": "Открыть чат команды",
-                    "url": team.project.team_chat_url,
-                }
-            ]
-        )
+    for team in ordered_teams:
+        lines.extend(["", team.project.title, team.project.organization.name, "Команда:"])
+        for member in team.members:
+            lines.append(f"— {member.user.name} ({member.role_title})")
+        if team.project.team_chat_url and not showing_completed:
+            buttons.append(
+                [
+                    {
+                        "type": "link",
+                        "text": f"Чат: {team.project.title}"[:40],
+                        "url": team.project.team_chat_url,
+                    }
+                ]
+            )
+
     buttons.append([_HOME_BUTTON])
     return "\n".join(lines), buttons
 

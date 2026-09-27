@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { ApiError } from "@/api/client";
-import { getMyTeam, type Team } from "@/api/team";
+import { getMyTeams, type Team } from "@/api/team";
 import {
   getMyProjectSubmission,
   submitProjectResult,
@@ -27,36 +27,31 @@ function openTeamChat(url: string) {
 }
 
 export function TeamScreen() {
-  const [team, setTeam] = useState<Team | null>(null);
+  const [teams, setTeams] = useState<Team[] | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [notInTeam, setNotInTeam] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submission, setSubmission] = useState<ProjectSubmission | null>(null);
   const [summary, setSummary] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const team = teams?.find((item) => item.id === selectedTeamId) ?? null;
 
   const load = () => {
     setError(null);
     setNotInTeam(false);
-    setTeam(null);
-    getMyTeam()
-      .then(async (nextTeam) => {
-        setTeam(nextTeam);
-        try {
-          const nextSubmission = await getMyProjectSubmission(nextTeam.project.id);
-          setSubmission(nextSubmission);
-          setSummary(nextSubmission.summary);
-          setResultUrl(nextSubmission.result_url ?? "");
-        } catch (err) {
-          if (!(err instanceof ApiError && err.status === 404)) throw err;
-          setSubmission(null);
-        }
+    setTeams(null);
+    getMyTeams()
+      .then((nextTeams) => {
+        setTeams(nextTeams);
+        setNotInTeam(nextTeams.length === 0);
+        setSelectedTeamId((current) =>
+          current && nextTeams.some((item) => item.id === current)
+            ? current
+            : (nextTeams[0]?.id ?? null),
+        );
       })
       .catch((err: unknown) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setNotInTeam(true);
-          return;
-        }
         setError(err instanceof Error ? err.message : "Ошибка загрузки");
       });
   };
@@ -64,6 +59,34 @@ export function TeamScreen() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!team) {
+      setSubmission(null);
+      setSummary("");
+      setResultUrl("");
+      return;
+    }
+    let cancelled = false;
+    setSubmission(null);
+    setSummary("");
+    setResultUrl("");
+    getMyProjectSubmission(team.project.id)
+      .then((nextSubmission) => {
+        if (cancelled) return;
+        setSubmission(nextSubmission);
+        setSummary(nextSubmission.summary);
+        setResultUrl(nextSubmission.result_url ?? "");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) return;
+        setError(err instanceof Error ? err.message : "Ошибка загрузки результата");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [team?.id, team?.project.id]);
 
   const handleSubmit = async () => {
     if (!team || summary.trim().length < 10) return;
@@ -86,7 +109,7 @@ export function TeamScreen() {
     <div className="screen">
       <header>
         <h1 className="screen-title">Моя команда</h1>
-        <p className="screen-subtitle">С кем ты делаешь проект прямо сейчас.</p>
+        <p className="screen-subtitle">Все проекты, в которых ты участвуешь.</p>
       </header>
 
       {error && (
@@ -103,12 +126,27 @@ export function TeamScreen() {
         </div>
       )}
 
-      {!error && !notInTeam && team === null && (
+      {!error && !notInTeam && teams === null && (
         <div className="skeleton h-32" />
       )}
 
       {team && (
         <>
+          {teams && teams.length > 1 && (
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              {teams.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={item.id === team.id}
+                  onClick={() => setSelectedTeamId(item.id)}
+                  className="chip max-w-56 truncate"
+                >
+                  {item.project.title}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="card">
             <p className="text-xs text-slate-400">{team.project.organization.name}</p>
             <h2 className="mt-1 text-sm font-semibold">{team.project.title}</h2>
