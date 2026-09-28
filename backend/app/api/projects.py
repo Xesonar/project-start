@@ -15,6 +15,17 @@ from app.services.recommendation import explain_top_recommendations, recommend_p
 router = APIRouter(tags=["projects"])
 
 
+def _fallback_reason(item) -> str:
+    strongest = max(item.breakdown, key=item.breakdown.get)
+    labels = {
+        "skills": "нужные навыки ближе всего к твоему профилю",
+        "role": "выбранная роль совпадает с твоим направлением",
+        "specialty": "тематика проекта подходит к твоей специальности",
+        "difficulty": "уровень проекта соответствует твоей текущей подготовке",
+    }
+    return f"Подбор рассчитан по анкете: {labels[strongest]}."
+
+
 def _project_query():
     return select(Project).options(
         selectinload(Project.organization),
@@ -73,7 +84,7 @@ def list_recommended_projects(
                 "reason": (
                     "Начальный проект без завышенных требований — можно учиться прямо в процессе."
                     if novice_profile
-                    else reasons.get(item.project.id)
+                    else reasons.get(item.project.id) or _fallback_reason(item)
                 ),
             }
         )
@@ -92,5 +103,5 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> Project:
         )
     )
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     return project

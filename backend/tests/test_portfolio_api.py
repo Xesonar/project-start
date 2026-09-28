@@ -295,6 +295,22 @@ def test_portfolio_link_is_idempotent(client):
     assert first == second
 
 
+def test_portfolio_link_can_be_rotated_and_revoked(client):
+    headers = _student_headers(client, 314)
+    first = client.post("/me/portfolio/link", headers=headers).json()["slug"]
+    assert client.get("/me/portfolio/link", headers=headers).json()["slug"] == first
+
+    second = client.put("/me/portfolio/link", headers=headers).json()["slug"]
+    assert second != first
+    assert client.get(f"/p/{first}").status_code == 404
+    assert client.get(f"/p/{second}").status_code == 200
+
+    revoked = client.delete("/me/portfolio/link", headers=headers)
+    assert revoked.status_code == 204
+    assert client.get(f"/p/{second}").status_code == 404
+    assert client.get("/me/portfolio/link", headers=headers).json()["slug"] is None
+
+
 def test_public_portfolio_for_empty_student(client):
     headers = _student_headers(client, 313)
     slug = client.post("/me/portfolio/link", headers=headers).json()["slug"]

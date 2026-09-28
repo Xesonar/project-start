@@ -14,7 +14,7 @@ class ProjectCompleteRequest(BaseModel):
     @classmethod
     def validate_result_url(cls, value: str | None) -> str | None:
         if value is not None and not value.startswith(("https://", "http://")):
-            raise ValueError("result_url must use http or https")
+            raise ValueError("Ссылка на результат должна начинаться с http:// или https://")
         return value
 
 
@@ -97,3 +97,7 @@ class PortfolioPublic(BaseModel):
 
 class PortfolioLinkResponse(BaseModel):
     slug: str
+
+
+class PortfolioLinkState(BaseModel):
+    slug: str | None

@@ -64,5 +64,5 @@ def get_my_teams(
 def get_my_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamRead:
     teams = _my_teams(db, user.id)
     if not teams:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "You are not part of a team yet")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Вы пока не состоите ни в одной команде")
     return _team_response(teams[0])

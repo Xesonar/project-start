@@ -5,7 +5,7 @@ import type { Config } from "tailwindcss";
  *
  * Tokens are named, not numbered-by-mood: `surface`/`surface-2` for cards,
  * `semantic-*` for feedback, `brand` for the product gradient. Dark mode is
- * class-based (`<html class="dark">`) so the demo can force it on a projector.
+ * class-based (`<html class="dark">`) so MAX/device theme can be overridden by the user.
  */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],

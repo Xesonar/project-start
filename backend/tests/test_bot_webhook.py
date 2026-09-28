@@ -204,6 +204,32 @@ def test_failed_callback_can_be_retried(client, monkeypatch):
     assert attempts == 2
 
 
+def test_max_delivery_failure_returns_502_and_allows_retry(client, monkeypatch):
+    _mock_bot_api(monkeypatch)
+    attempts = 0
+
+    def answer_once(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        return attempts > 1
+
+    monkeypatch.setattr(max_bot_client, "answer_callback", answer_once)
+    payload = {
+        "update_type": "message_callback",
+        "callback": {
+            "callback_id": "cb-delivery-retry",
+            "payload": "a",
+            "user": {"user_id": 808, "first_name": "Студент"},
+        },
+    }
+    failed = client.post("/bot/webhook", json=payload, headers=_headers())
+    retried = client.post("/bot/webhook", json=payload, headers=_headers())
+
+    assert failed.status_code == 502
+    assert retried.status_code == 200
+    assert attempts == 2
+
+
 def test_message_callback_apply_creates_application(client, monkeypatch):
     run_seed()
     calls = _mock_bot_api(monkeypatch)
@@ -277,8 +303,18 @@ def test_bot_allows_reapplying_after_rejection(client):
 
         repeated_text, _ = build_apply_result(db, user, project.id, role.id)
         assert "отправлен" in repeated_text
-        db.refresh(application)
-        assert application.status == ApplicationStatus.pending
-        assert application.decision_note is None
+        latest = db.scalar(
+            select(Application)
+            .where(
+                Application.user_id == user.id,
+                Application.project_id == project.id,
+                Application.project_role_id == role.id,
+            )
+            .order_by(Application.created_at.desc(), Application.id.desc())
+        )
+        assert latest.id != application.id
+        assert latest.status == ApplicationStatus.pending
+        assert application.status == ApplicationStatus.rejected
+        assert application.decision_note == "Нужно уточнить опыт"
     finally:
         db.close()

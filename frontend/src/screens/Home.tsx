@@ -77,8 +77,29 @@ export function HomeScreen() {
             🚀
           </div>
           <p className="text-sm text-slate-400">
-            Пока нет открытых проектов — загляни на вкладку «Поиск» позже.
+            {isStarter
+              ? "Сейчас нет открытых проектов начального уровня. Материалы для подготовки доступны после повторной оценки навыков."
+              : "Пока нет открытых проектов — загляни на вкладку «Поиск» позже."}
           </p>
+          {isStarter && (
+            <div className="mt-2 flex w-full flex-col gap-2 text-left">
+              {learningResources.map((resource) => (
+                <a
+                  key={resource.url}
+                  href={resource.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => {
+                    if (openExternalLink(resource.url)) event.preventDefault();
+                  }}
+                  className="rounded-lg border border-brand-200 bg-brand-gradient-soft p-3 text-sm"
+                >
+                  <span className="font-semibold text-brand-700">{resource.title} ↗</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">{resource.description}</span>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
 

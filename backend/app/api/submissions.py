@@ -21,9 +21,9 @@ def _require_active_membership(db: Session, *, project_id: int, user_id: int) ->
         select(Project).where(Project.id == project_id).with_for_update()
     )
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status == ProjectStatus.completed:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Completed project submissions are locked")
+        raise HTTPException(status.HTTP_409_CONFLICT, "В завершённом проекте сдачи заблокированы")
     membership = db.scalar(
         select(TeamMember)
         .join(Team, Team.id == TeamMember.team_id)
@@ -34,7 +34,7 @@ def _require_active_membership(db: Session, *, project_id: int, user_id: int) ->
         )
     )
     if membership is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You are not an active team member")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Вы не состоите в активной команде проекта")
     return project
 
 
@@ -54,7 +54,7 @@ def get_my_submission(
         )
     )
     if submission is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сдача не найдена")
     return submission
 
 

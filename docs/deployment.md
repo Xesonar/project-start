@@ -31,12 +31,9 @@
    - `POSTGRES_PASSWORD` — свой, не дефолтный
    - `MAX_BOT_TOKEN` — реальный токен бота
    - `MAX_BOT_WEBHOOK_SECRET` — см. раздел «Бот-меню в чате» ниже
-   - `AUTH_RATE_LIMIT_PER_MINUTE` — лимит попыток demo/admin-входа с одного IP
+   - `AUTH_RATE_LIMIT_PER_MINUTE` — лимит попыток входа в админку с одного IP
    - `WEBHOOK_RATE_LIMIT_PER_MINUTE` и `WEBHOOK_DEDUP_TTL_SECONDS` — защита webhook от всплесков и повторов
    - `JWT_SECRET`, `ADMIN_PASSWORD` — сгенерировать (`python3 -c "import secrets; print(secrets.token_urlsafe(48))"`)
-   - `DEMO_MODE=false` и `ALLOW_PRODUCTION_DEMO=false` — рабочий домен принимает
-     студентов только через подписанный вход MAX. Для отдельной публичной демки
-     оба флага включаются осознанно.
    - `DEEPSEEK_API_KEY` — рабочий ключ
    - `CORS_ORIGINS=https://<домен>`
    - `VITE_API_BASE_URL=/api`

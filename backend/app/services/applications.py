@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -52,21 +50,17 @@ def create_application(
             Application.user_id == user_id,
             Application.project_id == project_id,
             Application.project_role_id == role.id,
+            Application.status.in_(
+                [
+                    ApplicationStatus.pending,
+                    ApplicationStatus.accepted,
+                    ApplicationStatus.leave_requested,
+                ]
+            ),
         )
     )
     if existing is not None:
-        if existing.status not in {
-            ApplicationStatus.withdrawn,
-            ApplicationStatus.rejected,
-        }:
-            raise ApplicationError("duplicate", "Ты уже откликнулся на эту роль")
-        existing.status = ApplicationStatus.pending
-        existing.message = message
-        existing.decision_note = None
-        existing.created_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(existing)
-        return existing
+        raise ApplicationError("duplicate", "Ты уже откликнулся на эту роль")
 
     application = Application(
         user_id=user_id, project_id=project_id, project_role_id=role.id, message=message
@@ -90,13 +84,13 @@ def withdraw_application(db: Session, *, user_id: int, application_id: int) -> A
         )
     )
     if application is None:
-        raise ApplicationError("application_not_found", "Application not found")
+        raise ApplicationError("application_not_found", "Отклик не найден")
     if application.status == ApplicationStatus.withdrawn:
         return application
     if application.status != ApplicationStatus.pending:
         raise ApplicationError(
             "not_pending",
-            "Only an application under review can be withdrawn",
+            "Отменить можно только отклик на рассмотрении",
         )
 
     application.status = ApplicationStatus.withdrawn
@@ -113,18 +107,18 @@ def request_team_leave(db: Session, *, user_id: int, application_id: int) -> App
         )
     )
     if application is None:
-        raise ApplicationError("application_not_found", "Application not found")
+        raise ApplicationError("application_not_found", "Отклик не найден")
     if application.status == ApplicationStatus.leave_requested:
         return application
     if application.status != ApplicationStatus.accepted:
         raise ApplicationError(
             "not_accepted",
-            "Only an accepted application can request team leave",
+            "Запросить выход можно только после принятия в команду",
         )
     if application.project.status == ProjectStatus.completed:
         raise ApplicationError(
             "project_completed",
-            "A completed project team cannot be changed",
+            "Состав завершённого проекта изменить нельзя",
         )
     application.status = ApplicationStatus.leave_requested
     db.commit()

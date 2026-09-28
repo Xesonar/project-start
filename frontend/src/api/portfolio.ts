@@ -51,6 +51,15 @@ export const getMyPortfolio = () => apiRequest<PortfolioItem[]>("/me/portfolio")
 export const createPortfolioLink = () =>
   apiRequest<{ slug: string }>("/me/portfolio/link", { method: "POST" });
 
+export const getPortfolioLink = () =>
+  apiRequest<{ slug: string | null }>("/me/portfolio/link");
+
+export const regeneratePortfolioLink = () =>
+  apiRequest<{ slug: string }>("/me/portfolio/link", { method: "PUT" });
+
+export const revokePortfolioLink = () =>
+  apiRequest<void>("/me/portfolio/link", { method: "DELETE" });
+
 /** Public — no token, this is the link a student sends to a recruiter. */
 export const getPublicPortfolio = (slug: string) =>
   apiRequest<PublicPortfolio>(`/p/${slug}`, { auth: false });

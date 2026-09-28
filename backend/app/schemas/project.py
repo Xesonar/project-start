@@ -43,6 +43,13 @@ class OrganizationRead(BaseModel):
     verified: bool
 
 
+class OrganizationCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    description: str = Field(min_length=3, max_length=5000)
+    type: str = Field(min_length=2, max_length=100)
+    verified: bool = False
+
+
 class ProjectListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,13 +96,13 @@ class ProjectCreate(BaseModel):
     def validate_role_capacity(self):
         normalized_titles = [role.title.strip().casefold() for role in self.roles]
         if len(normalized_titles) != len(set(normalized_titles)):
-            raise ValueError("Role titles must be unique")
+            raise ValueError("Названия ролей не должны повторяться")
         if sum(role.slots for role in self.roles) < self.participant_limit:
-            raise ValueError("Role slots must cover the participant limit")
+            raise ValueError("Количество мест в ролях должно покрывать лимит участников")
         if self.team_chat_url is not None:
             self.team_chat_url = self.team_chat_url.strip() or None
             if self.team_chat_url is not None and not self.team_chat_url.startswith(
                 "https://max.ru/"
             ):
-                raise ValueError("Team chat URL must start with https://max.ru/")
+                raise ValueError("Ссылка на чат должна начинаться с https://max.ru/")
         return self

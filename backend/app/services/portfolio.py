@@ -43,13 +43,13 @@ def _slug_base(name: str) -> str:
 
 def _generate_slug(db: Session, base: str) -> str:
     for _ in range(_MAX_ATTEMPTS):
-        candidate = f"{base}-{secrets.token_hex(3)}"
+        candidate = f"{base}-{secrets.token_urlsafe(16)}"
         exists = db.scalar(
             select(User.id).where(User.portfolio_slug == candidate)
         )
         if exists is None:
             return candidate
-    raise RuntimeError("could not generate a unique portfolio slug")
+    raise RuntimeError("Не удалось создать уникальную ссылку на портфолио")
 
 
 def ensure_portfolio_slug(db: Session, user: User) -> PortfolioLinkResponse:
@@ -59,6 +59,20 @@ def ensure_portfolio_slug(db: Session, user: User) -> PortfolioLinkResponse:
         db.commit()
         db.refresh(user)
     return PortfolioLinkResponse(slug=user.portfolio_slug)
+
+
+def rotate_portfolio_slug(db: Session, user: User) -> PortfolioLinkResponse:
+    """Invalidates the old public URL and returns a newly generated one."""
+    user.portfolio_slug = _generate_slug(db, _slug_base(user.name))
+    db.commit()
+    db.refresh(user)
+    return PortfolioLinkResponse(slug=user.portfolio_slug)
+
+
+def revoke_portfolio_slug(db: Session, user: User) -> None:
+    """Makes the public portfolio private again immediately."""
+    user.portfolio_slug = None
+    db.commit()
 
 
 def build_public_portfolio(db: Session, slug: str) -> PortfolioPublic | None:

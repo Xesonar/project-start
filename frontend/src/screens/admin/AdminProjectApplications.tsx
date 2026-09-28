@@ -8,6 +8,7 @@ import {
   listProjectApplications,
   listProjectSubmissions,
   messageApplicationStudent,
+  resetApplicationDecision,
   reviewProjectSubmission,
   updateProjectCommunication,
   updateApplicationStatus,
@@ -128,12 +129,28 @@ export function AdminProjectApplications() {
     status: "accepted" | "rejected",
     note?: string | null,
   ) => {
+    const action = status === "accepted" ? "принять студента" : "отклонить отклик";
+    if (!window.confirm(`Точно ${action}?`)) return;
     setPendingActionId(applicationId);
     try {
       await updateApplicationStatus(applicationId, status, note);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось обновить статус");
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleResetDecision = async (applicationId: number) => {
+    if (!window.confirm("Вернуть отклик на рассмотрение? Состав команды будет пересчитан.")) return;
+    setPendingActionId(applicationId);
+    setError(null);
+    try {
+      await resetApplicationDecision(applicationId);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить решение");
     } finally {
       setPendingActionId(null);
     }
@@ -169,7 +186,7 @@ export function AdminProjectApplications() {
         ...current,
         [applicationId]: result.delivered
           ? "Сообщение отправлено в MAX"
-          : "MAX не подтвердил доставку. Проверь токен и запуск бота студентом.",
+          : "MAX не подтвердил доставку сразу. Сообщение сохранено и будет отправлено повторно.",
       }));
       if (result.delivered) {
         setMessageDrafts((current) => ({ ...current, [applicationId]: "" }));
@@ -258,11 +275,6 @@ export function AdminProjectApplications() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold">{app.user.name}</p>
-                  {app.user.is_demo && (
-                    <p className="mt-0.5 text-xs font-medium text-violet-600">
-                      Демо-пользователь — сообщений в MAX нет
-                    </p>
-                  )}
                   <p className="text-xs text-slate-500">
                     {app.user.profile?.specialty ?? "—"} ·{" "}
                     {app.user.profile?.experience_level ?? "уровень не указан"}
@@ -283,7 +295,6 @@ export function AdminProjectApplications() {
               {app.status === "pending" && (
                 <div className="mt-3 flex flex-col gap-2">
                   <textarea
-                    disabled={app.user.is_demo}
                     value={rejectionDrafts[app.id] ?? ""}
                     onChange={(event) =>
                       setRejectionDrafts((current) => ({
@@ -340,6 +351,17 @@ export function AdminProjectApplications() {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {(app.status === "accepted" || app.status === "rejected") && project?.status !== "completed" && (
+                <button
+                  type="button"
+                  disabled={pendingActionId === app.id}
+                  onClick={() => void handleResetDecision(app.id)}
+                  className="mt-3 text-xs font-medium text-slate-500 underline disabled:opacity-50"
+                >
+                  Отменить решение и вернуть на рассмотрение
+                </button>
               )}
 
               {(app.status === "accepted" || app.status === "leave_requested") && (() => {
@@ -444,7 +466,6 @@ export function AdminProjectApplications() {
                   <button
                     type="button"
                     disabled={
-                      app.user.is_demo ||
                       sendingMessageId === app.id ||
                       !messageDrafts[app.id]?.trim()
                     }

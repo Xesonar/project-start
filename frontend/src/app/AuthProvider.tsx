@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { authWithMax } from "@/api/auth";
-import { STUDENT_UNAUTHORIZED_EVENT } from "@/api/client";
-import { getToken, setToken } from "@/api/token";
+import { registerStudentSessionRefresher, STUDENT_UNAUTHORIZED_EVENT } from "@/api/client";
+import { setToken } from "@/api/token";
 import { getMe, type Me } from "@/api/users";
 import { getInitData } from "@/max/webapp";
 
@@ -64,32 +64,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    registerStudentSessionRefresher(async () => {
+      if (!initData) return false;
+      try {
+        const { access_token } = await authWithMax(initData);
+        setToken(access_token);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+
     window.addEventListener(STUDENT_UNAUTHORIZED_EVENT, restoreMaxSession);
     if (!initData) {
-      // Outside MAX. A demo session (POST /auth/demo) is stored in the same
-      // token slot — resume it so a reload doesn't kick the judge out.
-      const existingToken = getToken();
-      if (!existingToken) {
-        setStatus("unavailable");
-        return () => {
-          cancelled = true;
-          window.removeEventListener(STUDENT_UNAUTHORIZED_EVENT, restoreMaxSession);
-        };
-      }
-      getMe()
-        .then((profile) => {
-          setMe(profile);
-          setStatus("authenticated");
-        })
-        .catch(() => setStatus("unavailable"));
+      setStatus("unavailable");
       return () => {
         cancelled = true;
+        registerStudentSessionRefresher(null);
         window.removeEventListener(STUDENT_UNAUTHORIZED_EVENT, restoreMaxSession);
       };
     }
     restoreMaxSession();
     return () => {
       cancelled = true;
+      registerStudentSessionRefresher(null);
       window.removeEventListener(STUDENT_UNAUTHORIZED_EVENT, restoreMaxSession);
     };
   }, []);

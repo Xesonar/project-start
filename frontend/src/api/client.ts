@@ -3,6 +3,15 @@ import { clearAdminToken, clearToken, getAdminToken, getToken } from "./token";
 export const ADMIN_UNAUTHORIZED_EVENT = "project-start:admin-unauthorized";
 export const STUDENT_UNAUTHORIZED_EVENT = "project-start:student-unauthorized";
 
+let studentSessionRefresher: (() => Promise<boolean>) | null = null;
+let studentRefreshInFlight: Promise<boolean> | null = null;
+
+export function registerStudentSessionRefresher(
+  refresher: (() => Promise<boolean>) | null,
+): void {
+  studentSessionRefresher = refresher;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
@@ -48,9 +57,9 @@ async function readErrorMessage(response: Response): Promise<string> {
 
 export async function apiRequest<T>(
   path: string,
-  options: { method?: string; body?: unknown; auth?: boolean | "admin" } = {},
+  options: { method?: string; body?: unknown; auth?: boolean | "admin"; _retried?: boolean } = {},
 ): Promise<T> {
-  const { method = "GET", body, auth = true } = options;
+  const { method = "GET", body, auth = true, _retried = false } = options;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) {
@@ -70,6 +79,14 @@ export async function apiRequest<T>(
       window.dispatchEvent(new Event(ADMIN_UNAUTHORIZED_EVENT));
     } else if (auth === true && response.status === 401) {
       clearToken();
+      if (!_retried && studentSessionRefresher) {
+        studentRefreshInFlight ??= studentSessionRefresher().finally(() => {
+          studentRefreshInFlight = null;
+        });
+        if (await studentRefreshInFlight) {
+          return apiRequest<T>(path, { ...options, _retried: true });
+        }
+      }
       window.dispatchEvent(new Event(STUDENT_UNAUTHORIZED_EVENT));
     }
     throw new ApiError(response.status, await readErrorMessage(response));

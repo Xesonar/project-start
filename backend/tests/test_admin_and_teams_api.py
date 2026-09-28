@@ -115,6 +115,57 @@ def test_admin_can_publish_draft_project(client, monkeypatch):
     assert repeated.status_code == 409
 
 
+def test_admin_can_create_organization(client, monkeypatch):
+    headers = _admin_headers(client, monkeypatch)
+    created = client.post(
+        "/admin/organizations",
+        headers=headers,
+        json={
+            "name": "Лаборатория робототехники",
+            "description": "Учебная лаборатория университета",
+            "type": "Лаборатория",
+            "verified": False,
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["verified"] is False
+    duplicate = client.post(
+        "/admin/organizations",
+        headers=headers,
+        json={
+            "name": "лаборатория робототехники",
+            "description": "Повтор",
+            "type": "Лаборатория",
+            "verified": False,
+        },
+    )
+    assert duplicate.status_code == 409
+
+
+def test_admin_can_close_and_reopen_recruitment(client, monkeypatch):
+    from app.seed.run_seed import main as run_seed
+
+    run_seed()
+    headers = _admin_headers(client, monkeypatch)
+    project = client.get("/projects").json()[0]
+    closed = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=headers,
+        json={"status": "in_progress"},
+    )
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "in_progress"
+    assert all(item["id"] != project["id"] for item in client.get("/projects").json())
+
+    reopened = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=headers,
+        json={"status": "open"},
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["status"] == "open"
+
+
 def test_admin_rejects_project_when_role_slots_cannot_fill_team(client, monkeypatch):
     from app.seed.run_seed import main as run_seed
 
@@ -523,9 +574,30 @@ def test_student_can_apply_again_after_rejection(client, monkeypatch):
         },
     )
     assert repeated.status_code == 201
-    assert repeated.json()["id"] == application["id"]
+    assert repeated.json()["id"] != application["id"]
+    history = client.get("/me/applications", headers=student_headers).json()
+    assert [item["status"] for item in history[:2]] == ["pending", "rejected"]
     assert repeated.json()["status"] == "pending"
     assert repeated.json()["decision_note"] is None
+
+
+def test_admin_can_return_rejected_application_to_review(client, monkeypatch):
+    student_headers = _student_headers(client, 221)
+    admin_headers = _admin_headers(client, monkeypatch)
+    _project, application = _seed_and_apply(client, student_headers)
+    assert client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "rejected", "note": "Нужно уточнение"},
+    ).status_code == 200
+
+    reset = client.post(
+        f"/admin/applications/{application['id']}/reset",
+        headers=admin_headers,
+    )
+    assert reset.status_code == 200
+    assert reset.json()["status"] == "pending"
+    assert reset.json()["decision_note"] is None
 
 
 def test_project_chat_is_visible_only_to_team_member(client, monkeypatch):
@@ -572,45 +644,6 @@ def test_admin_can_message_student_through_max_bot(client, monkeypatch):
     assert response.json() == {"delivered": True}
     assert sent[0]["user_id"] == 214
     assert project["title"] in sent[0]["text"]
-
-
-def test_admin_does_not_call_max_for_demo_student(client, monkeypatch):
-    from app.models.user import User
-    from app.db.session import SessionLocal
-    from app.seed.run_seed import main as run_seed
-
-    run_seed()
-    admin_headers = _admin_headers(client, monkeypatch)
-    project = client.get("/projects").json()[0]
-    detail = client.get(f"/projects/{project['id']}").json()
-    with SessionLocal() as db:
-        demo_user = User(max_user_id=-999, name="Демо", is_demo=True)
-        db.add(demo_user)
-        db.commit()
-        db.refresh(demo_user)
-        demo_user_id = demo_user.id
-    from app.core.security import create_access_token
-
-    demo_headers = {
-        "Authorization": f"Bearer {create_access_token(subject=demo_user_id, role='student')}"
-    }
-    application = client.post(
-        f"/projects/{project['id']}/applications",
-        headers=demo_headers,
-        json={"project_role_id": detail["roles"][0]["id"]},
-    ).json()
-
-    def unexpected_send(**kwargs):
-        raise AssertionError("MAX must not be called for a demo user")
-
-    monkeypatch.setattr("app.api.admin.max_bot_client.send_message", unexpected_send)
-    response = client.post(
-        f"/admin/applications/{application['id']}/message",
-        headers=admin_headers,
-        json={"text": "Проверка"},
-    )
-    assert response.status_code == 200
-    assert response.json() == {"delivered": False}
 
 
 def test_student_requests_team_leave_and_admin_confirms(client, monkeypatch):

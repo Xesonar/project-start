@@ -27,7 +27,7 @@ export function AdminMetricsScreen() {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Воронка пилота</h1>
-          <p className="mt-1 text-sm text-slate-500">Текущие значения, включая синтетические демо-данные.</p>
+          <p className="mt-1 text-sm text-slate-500">Актуальные показатели платформы.</p>
         </div>
         <Link to="/admin/projects" className="text-sm font-medium text-brand-600">Проекты →</Link>
       </header>

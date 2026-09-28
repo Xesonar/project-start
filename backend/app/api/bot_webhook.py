@@ -38,7 +38,7 @@ def bot_webhook(
     if not settings.max_bot_webhook_secret or not x_max_bot_api_secret or not hmac.compare_digest(
         x_max_bot_api_secret, settings.max_bot_webhook_secret
     ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid webhook secret")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный секрет вебхука")
 
     request_guard.enforce_rate(
         f"max-webhook:{client_ip(request)}",
@@ -79,7 +79,14 @@ def bot_webhook(
 
         if update_type == "bot_started":
             text, buttons = screens.build_home(db, user)
-            max_bot_client.send_message(user_id=user.max_user_id, text=text, buttons=buttons)
+            delivered = max_bot_client.send_message(
+                user_id=user.max_user_id, text=text, buttons=buttons
+            )
+            if delivered is None:
+                raise HTTPException(
+                    status.HTTP_502_BAD_GATEWAY,
+                    "MAX API временно недоступен",
+                )
             return {"ok": True}
 
         if update_type == "message_callback":
@@ -88,7 +95,14 @@ def bot_webhook(
             raw_payload = callback.get("payload") or ""
             if callback_id:
                 text, buttons = screens.route(db, user, decode(raw_payload))
-                max_bot_client.answer_callback(callback_id=callback_id, text=text, buttons=buttons)
+                delivered = max_bot_client.answer_callback(
+                    callback_id=callback_id, text=text, buttons=buttons
+                )
+                if not delivered:
+                    raise HTTPException(
+                        status.HTTP_502_BAD_GATEWAY,
+                        "MAX API временно недоступен",
+                    )
             return {"ok": True}
 
         return {"ok": True}

@@ -10,7 +10,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 /** Animated circular match score + the skill gap breakdown.
 
 The ring animates once on mount (stroke-dashoffset transition) so the number
-"counts up" visually — this is the demo's "aha" beat on the project screen.
+"counts up" visually to make the result easier to notice on the project screen.
 */
 export function MatchRing({
   match,

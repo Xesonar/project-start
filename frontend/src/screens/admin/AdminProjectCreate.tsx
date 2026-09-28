@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import {
   createAdminProject,
+  createAdminOrganization,
   listAdminOrganizations,
   type AdminProjectCreatePayload,
 } from "@/api/admin";
@@ -22,6 +23,10 @@ export function AdminProjectCreate() {
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevel>("beginner");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showOrganizationForm, setShowOrganizationForm] = useState(false);
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationType, setOrganizationType] = useState("");
+  const [organizationDescription, setOrganizationDescription] = useState("");
 
   useEffect(() => {
     Promise.all([listAdminOrganizations(), listSkills()])
@@ -42,6 +47,28 @@ export function AdminProjectCreate() {
     if (!skillId) return;
     setRequiredSkills((items) => [...items, { skill_id: skillId, required_level: selectedSkillLevel }]);
     setSelectedSkillId("");
+  };
+
+  const addOrganization = async () => {
+    if (!organizationName.trim() || !organizationType.trim() || !organizationDescription.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createAdminOrganization({
+        name: organizationName.trim(),
+        type: organizationType.trim(),
+        description: organizationDescription.trim(),
+      });
+      setOrganizations((items) => [...items, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setOrganizationName("");
+      setOrganizationType("");
+      setOrganizationDescription("");
+      setShowOrganizationForm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось добавить организацию");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -95,7 +122,20 @@ export function AdminProjectCreate() {
             <option value="">Выбери организацию</option>
             {organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
+          <button type="button" onClick={() => setShowOrganizationForm((value) => !value)} className="self-start text-xs font-medium text-brand-600 underline">
+            {showOrganizationForm ? "Скрыть форму" : "+ Добавить организацию"}
+          </button>
         </Field>
+        {showOrganizationForm && (
+          <div className="grid gap-2 rounded-lg bg-slate-50 p-3 sm:col-span-2 sm:grid-cols-2">
+            <input value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} placeholder="Название организации" className="admin-input" />
+            <input value={organizationType} onChange={(e) => setOrganizationType(e.target.value)} placeholder="Тип: компания, клуб, кафедра" className="admin-input" />
+            <textarea value={organizationDescription} onChange={(e) => setOrganizationDescription(e.target.value)} placeholder="Короткое описание" rows={2} className="admin-input sm:col-span-2" />
+            <button type="button" disabled={saving || !organizationName.trim() || !organizationType.trim() || !organizationDescription.trim()} onClick={() => void addOrganization()} className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 sm:col-span-2">
+              Добавить организацию
+            </button>
+          </div>
+        )}
         <Field label="Описание" wide><textarea required minLength={10} name="description" rows={4} className="admin-input" /></Field>
         <Field label="Сложность"><select name="difficulty" className="admin-input"><option value="beginner">Начальный</option><option value="intermediate">Средний</option><option value="advanced">Продвинутый</option></select></Field>
         <Field label="Формат"><select name="format" className="admin-input"><option value="online">Онлайн</option><option value="offline">Офлайн</option><option value="hybrid">Гибрид</option></select></Field>

@@ -14,7 +14,6 @@ class ApplicantRead(BaseModel):
     id: int
     name: str
     avatar_url: str | None
-    is_demo: bool
     profile: ProfileRead | None
 
 
@@ -55,8 +54,12 @@ class ProjectCommunicationUpdate(BaseModel):
     def validate_team_chat_url(cls, value: str | None) -> str | None:
         value = value.strip() if value else None
         if value is not None and not value.startswith("https://max.ru/"):
-            raise ValueError("team_chat_url must start with https://max.ru/")
+            raise ValueError("Ссылка на чат должна начинаться с https://max.ru/")
         return value
+
+
+class ProjectStatusUpdate(BaseModel):
+    status: Literal["open", "in_progress"]
 
 
 class AdminMetricsRead(BaseModel):

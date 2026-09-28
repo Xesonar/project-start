@@ -224,7 +224,10 @@ def build_my_applications(db, user: User) -> tuple[str, Buttons]:
                     }
                 ]
             )
-        elif app.status == ApplicationStatus.accepted:
+        elif (
+            app.status == ApplicationStatus.accepted
+            and app.project.status != ProjectStatus.completed
+        ):
             buttons.append(
                 [
                     {

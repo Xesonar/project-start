@@ -143,7 +143,7 @@ export function MyApplicationsScreen() {
                   {withdrawingId === app.id ? "Отменяем…" : "Отменить отклик"}
                 </button>
               )}
-              {app.status === "accepted" && (
+              {app.status === "accepted" && app.project.status !== "completed" && (
                 <button
                   type="button"
                   disabled={withdrawingId === app.id}

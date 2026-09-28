@@ -11,11 +11,17 @@ from app.schemas.portfolio import (
     ConfirmationRead,
     PortfolioItem,
     PortfolioLinkResponse,
+    PortfolioLinkState,
     PortfolioPublic,
     ProjectResultRead,
 )
 from app.schemas.project import ProjectListItem
-from app.services.portfolio import build_public_portfolio, ensure_portfolio_slug
+from app.services.portfolio import (
+    build_public_portfolio,
+    ensure_portfolio_slug,
+    revoke_portfolio_slug,
+    rotate_portfolio_slug,
+)
 
 router = APIRouter(tags=["portfolio"])
 
@@ -74,10 +80,29 @@ def create_my_portfolio_link(
     return ensure_portfolio_slug(db, user)
 
 
+@router.get("/me/portfolio/link", response_model=PortfolioLinkState)
+def get_my_portfolio_link(user: User = Depends(get_current_user)) -> PortfolioLinkState:
+    return PortfolioLinkState(slug=user.portfolio_slug)
+
+
+@router.put("/me/portfolio/link", response_model=PortfolioLinkResponse)
+def regenerate_my_portfolio_link(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> PortfolioLinkResponse:
+    return rotate_portfolio_slug(db, user)
+
+
+@router.delete("/me/portfolio/link", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_portfolio_link(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    revoke_portfolio_slug(db, user)
+
+
 @router.get("/p/{slug}", response_model=PortfolioPublic)
 def get_public_portfolio(slug: str, db: Session = Depends(get_db)) -> PortfolioPublic:
     """Public portfolio — no auth, no contact details, recruiter-friendly."""
     portfolio = build_public_portfolio(db, slug)
     if portfolio is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Portfolio not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Портфолио не найдено или ссылка отозвана")
     return portfolio

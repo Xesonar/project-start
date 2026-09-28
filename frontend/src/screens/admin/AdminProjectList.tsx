@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { listAdminProjects, publishAdminProject } from "@/api/admin";
+import { listAdminProjects, publishAdminProject, updateAdminProjectStatus } from "@/api/admin";
 import { DifficultyBadge } from "@/components/DifficultyBadge";
 import type { ProjectListItem } from "@/api/projects";
 
@@ -27,6 +27,24 @@ export function AdminProjectList() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось опубликовать проект");
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const changeRecruitment = async (project: ProjectListItem) => {
+    const nextStatus = project.status === "open" ? "in_progress" : "open";
+    const action = nextStatus === "open" ? "открыть набор" : "закрыть набор";
+    if (!window.confirm(`Точно ${action} в проект?`)) return;
+    setPublishingId(project.id);
+    setError(null);
+    try {
+      const updated = await updateAdminProjectStatus(project.id, nextStatus);
+      setProjects((current) =>
+        current?.map((item) => (item.id === project.id ? updated : item)) ?? null,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить набор");
     } finally {
       setPublishingId(null);
     }
@@ -83,6 +101,16 @@ export function AdminProjectList() {
                     className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                   >
                     {publishingId === project.id ? "Публикуем…" : "Опубликовать"}
+                  </button>
+                )}
+                {(project.status === "open" || project.status === "in_progress") && (
+                  <button
+                    type="button"
+                    disabled={publishingId === project.id}
+                    onClick={() => void changeRecruitment(project)}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-50"
+                  >
+                    {project.status === "open" ? "Закрыть набор" : "Открыть набор"}
                   </button>
                 )}
               </div>

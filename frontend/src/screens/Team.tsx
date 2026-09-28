@@ -169,7 +169,7 @@ export function TeamScreen() {
             ))}
           </div>
 
-          {team.team_chat_url && (
+          {team.team_chat_url && team.status === "active" && (
             <button
               type="button"
               onClick={() => openTeamChat(team.team_chat_url!)}

@@ -17,7 +17,6 @@ export interface AdminApplicant {
   id: number;
   name: string;
   avatar_url: string | null;
-  is_demo: boolean;
   profile: Profile | null;
 }
 
@@ -83,6 +82,17 @@ export const getAdminMetrics = () =>
 export const listAdminOrganizations = () =>
   apiRequest<Organization[]>("/admin/organizations", { auth: "admin" });
 
+export const createAdminOrganization = (payload: {
+  name: string;
+  description: string;
+  type: string;
+}) =>
+  apiRequest<Organization>("/admin/organizations", {
+    method: "POST",
+    body: { ...payload, verified: false },
+    auth: "admin",
+  });
+
 export const createAdminProject = (payload: AdminProjectCreatePayload) =>
   apiRequest<ProjectDetail>("/admin/projects", {
     method: "POST",
@@ -93,6 +103,16 @@ export const createAdminProject = (payload: AdminProjectCreatePayload) =>
 export const publishAdminProject = (projectId: number) =>
   apiRequest<ProjectListItem>(`/admin/projects/${projectId}/publish`, {
     method: "POST",
+    auth: "admin",
+  });
+
+export const updateAdminProjectStatus = (
+  projectId: number,
+  status: Extract<ProjectStatus, "open" | "in_progress">,
+) =>
+  apiRequest<ProjectListItem>(`/admin/projects/${projectId}/status`, {
+    method: "PATCH",
+    body: { status },
     auth: "admin",
   });
 
@@ -107,6 +127,12 @@ export const updateApplicationStatus = (
   apiRequest<AdminApplication>(`/admin/applications/${applicationId}`, {
     method: "PATCH",
     body: { status, note },
+    auth: "admin",
+  });
+
+export const resetApplicationDecision = (applicationId: number) =>
+  apiRequest<AdminApplication>(`/admin/applications/${applicationId}/reset`, {
+    method: "POST",
     auth: "admin",
   });
 

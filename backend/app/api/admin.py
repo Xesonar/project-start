@@ -29,6 +29,7 @@ from app.schemas.admin import (
     ApplicationStatusUpdate,
     ProjectCommunicationRead,
     ProjectCommunicationUpdate,
+    ProjectStatusUpdate,
 )
 from app.schemas.portfolio import (
     ConfirmationCreate,
@@ -36,11 +37,18 @@ from app.schemas.portfolio import (
     ProjectCompleteRequest,
     ProjectFinalizeRequest,
 )
-from app.schemas.project import OrganizationRead, ProjectCreate, ProjectRead, ProjectListItem
+from app.schemas.project import (
+    OrganizationCreate,
+    OrganizationRead,
+    ProjectCreate,
+    ProjectListItem,
+    ProjectRead,
+)
 from app.schemas.team import TeamRead
 from app.schemas.submission import AdminSubmissionRead, SubmissionReview
 from app.services import max_bot_client
 from app.services.applications import MAX_ACTIVE_PROJECTS
+from app.services.notification_outbox import queue_failed_notification
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -48,52 +56,39 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(requir
 def _send_user_message(
     user: User, *, text: str, buttons: list[list[dict]] | None = None
 ) -> dict | None:
-    """Demo users have no MAX dialog; do not turn that into noisy API errors."""
-    if user.is_demo:
-        return None
-    return max_bot_client.send_message(
+    response = max_bot_client.send_message(
         user_id=user.max_user_id,
         text=text,
         buttons=buttons,
     )
+    if response is None:
+        queue_failed_notification(user_id=user.id, text=text, buttons=buttons)
+    return response
 
 
 @router.get("/metrics", response_model=AdminMetricsRead)
 def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
-    students = db.scalar(select(func.count(User.id)).where(User.is_demo.is_(False))) or 0
+    students = db.scalar(select(func.count(User.id))) or 0
     assessed = db.scalar(
         select(func.count(StudentProfile.user_id))
-        .join(User, User.id == StudentProfile.user_id)
-        .where(
-            User.is_demo.is_(False),
-            StudentProfile.preferred_role.is_not(None)
-        )
+        .where(StudentProfile.preferred_role.is_not(None))
     ) or 0
     applications = db.scalar(
         select(func.count(Application.id))
-        .join(User, User.id == Application.user_id)
-        .where(User.is_demo.is_(False))
     ) or 0
     accepted = db.scalar(
         select(func.count(Application.id))
-        .join(User, User.id == Application.user_id)
         .where(
-            User.is_demo.is_(False),
             Application.status.in_(
                 [ApplicationStatus.accepted, ApplicationStatus.leave_requested]
             )
         )
     ) or 0
     completed = db.scalar(
-        select(func.count(Project.id)).where(
-            Project.status == ProjectStatus.completed,
-            Project.is_demo.is_(False),
-        )
+        select(func.count(Project.id)).where(Project.status == ProjectStatus.completed)
     ) or 0
     confirmations = db.scalar(
         select(func.count(ParticipationConfirmation.id))
-        .join(User, User.id == ParticipationConfirmation.user_id)
-        .where(User.is_demo.is_(False))
     ) or 0
     return AdminMetricsRead(
         students=students,
@@ -123,17 +118,40 @@ def list_organizations(db: Session = Depends(get_db)) -> list[Organization]:
 
 
 @router.post(
+    "/organizations",
+    response_model=OrganizationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_organization(
+    payload: OrganizationCreate, db: Session = Depends(get_db)
+) -> Organization:
+    duplicate = db.scalar(
+        select(Organization.id).where(func.lower(Organization.name) == payload.name.lower())
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Организация с таким названием уже существует",
+        )
+    organization = Organization(**payload.model_dump())
+    db.add(organization)
+    db.commit()
+    db.refresh(organization)
+    return organization
+
+
+@router.post(
     "/projects",
     response_model=ProjectRead,
     status_code=status.HTTP_201_CREATED,
 )
 def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Project:
     if db.get(Organization, payload.organization_id) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown organization")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Организация не найдена")
 
     skill_ids = [item.skill_id for item in payload.required_skills]
     if len(skill_ids) != len(set(skill_ids)):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Duplicate skill ids")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Навыки не должны повторяться")
     existing_skill_ids = (
         set(db.scalars(select(Skill.id).where(Skill.id.in_(skill_ids))))
         if skill_ids
@@ -143,7 +161,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
     if missing_skill_ids:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Unknown skill ids: {missing_skill_ids}",
+            f"Не найдены навыки: {missing_skill_ids}",
         )
 
     data = payload.model_dump(exclude={"roles", "required_skills"})
@@ -177,13 +195,56 @@ def publish_project(project_id: int, db: Session = Depends(get_db)) -> Project:
         select(Project).where(Project.id == project_id).with_for_update()
     )
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status != ProjectStatus.draft:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Only a draft project can be published",
+            "Опубликовать можно только черновик",
         )
     project.status = ProjectStatus.open
+    db.commit()
+    return db.scalar(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.organization),
+            selectinload(Project.roles),
+            selectinload(Project.required_skills).selectinload(ProjectSkill.skill),
+        )
+    )
+
+
+@router.patch("/projects/{project_id}/status", response_model=ProjectListItem)
+def update_project_status(
+    project_id: int,
+    payload: ProjectStatusUpdate,
+    db: Session = Depends(get_db),
+) -> Project:
+    project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
+    if project.status in {ProjectStatus.draft, ProjectStatus.completed}:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Статус черновика или завершённого проекта меняется отдельным действием",
+        )
+
+    next_status = ProjectStatus(payload.status)
+    if next_status == ProjectStatus.open:
+        team = db.scalar(select(Team).where(Team.project_id == project_id))
+        member_count = (
+            db.scalar(
+                select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
+            )
+            if team is not None
+            else 0
+        ) or 0
+        if member_count >= project.participant_limit:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Нельзя открыть набор: команда уже заполнена",
+            )
+    project.status = next_status
     db.commit()
     return db.scalar(
         select(Project)
@@ -205,7 +266,7 @@ def get_project_communication(
 ) -> ProjectCommunicationRead:
     project = db.get(Project, project_id)
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     return ProjectCommunicationRead(team_chat_url=project.team_chat_url)
 
 
@@ -220,7 +281,7 @@ def update_project_communication(
 ) -> ProjectCommunicationRead:
     project = db.get(Project, project_id)
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     project.team_chat_url = payload.team_chat_url
     db.commit()
     return ProjectCommunicationRead(team_chat_url=project.team_chat_url)
@@ -236,7 +297,7 @@ def _admin_application_query():
 @router.get("/projects/{project_id}/applications", response_model=list[AdminApplicationRead])
 def list_project_applications(project_id: int, db: Session = Depends(get_db)) -> list[Application]:
     if db.get(Project, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
 
     query = (
         _admin_application_query()
@@ -250,13 +311,14 @@ def list_project_applications(project_id: int, db: Session = Depends(get_db)) ->
 def update_application_status(
     application_id: int, payload: ApplicationStatusUpdate, db: Session = Depends(get_db)
 ) -> Application:
+    automatic_notifications: list[tuple[User, str]] = []
     application = db.scalar(_admin_application_query().where(Application.id == application_id))
     if application is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Отклик не найден")
     if application.status == ApplicationStatus.withdrawn:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "A withdrawn application cannot be processed",
+            "Отменённый студентом отклик обработать нельзя",
         )
 
     previous_status = application.status
@@ -267,28 +329,28 @@ def update_application_status(
     }:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "This application decision is already final",
+            "Это решение уже принято. Сначала верните отклик на рассмотрение",
         )
     project = db.scalar(
         select(Project).where(Project.id == application.project_id).with_for_update()
     )
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status == ProjectStatus.completed:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "A completed project team cannot be changed",
+            "Состав завершённого проекта изменить нельзя",
         )
     if (
         previous_status == ApplicationStatus.pending
         and next_status == ApplicationStatus.accepted
         and project.status != ProjectStatus.open
     ):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Project is not recruiting")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Набор в проект закрыт")
     if next_status == ApplicationStatus.rejected and not payload.note:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "A rejection reason is required",
+            "Укажите причину отказа",
         )
     application.status = next_status
     application.decision_note = payload.note
@@ -311,7 +373,7 @@ def update_application_status(
             if active_team_count >= MAX_ACTIVE_PROJECTS:
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
-                    f"Student already belongs to {MAX_ACTIVE_PROJECTS} active projects",
+                    f"Студент уже участвует в {MAX_ACTIVE_PROJECTS} активных проектах",
                 )
         accepted_for_role = db.scalar(
             select(func.count(Application.id)).where(
@@ -323,7 +385,7 @@ def update_application_status(
             )
         ) or 0
         if accepted_for_role >= application.project_role.slots:
-            raise HTTPException(status.HTTP_409_CONFLICT, "No slots left for this role")
+            raise HTTPException(status.HTTP_409_CONFLICT, "На этой роли больше нет мест")
 
         accepted_user_ids = set(
             db.scalars(
@@ -340,7 +402,7 @@ def update_application_status(
             application.user_id not in accepted_user_ids
             and len(accepted_user_ids) >= project.participant_limit
         ):
-            raise HTTPException(status.HTTP_409_CONFLICT, "Project team is full")
+            raise HTTPException(status.HTTP_409_CONFLICT, "Команда проекта уже заполнена")
 
         team = db.scalar(select(Team).where(Team.project_id == application.project_id))
         if team is None:
@@ -382,6 +444,9 @@ def update_application_status(
         for other_application in other_applications:
             other_application.status = ApplicationStatus.rejected
             other_application.decision_note = "Вы приняты на другую роль этого проекта."
+            automatic_notifications.append(
+                (other_application.user, f"Другой отклик на «{project.title}» закрыт: ты принят на выбранную роль.")
+            )
 
         db.flush()
         active_team_count = db.scalar(
@@ -407,6 +472,12 @@ def update_application_status(
                 other_application.decision_note = (
                     f"Достигнут лимит: {MAX_ACTIVE_PROJECTS} активных проекта."
                 )
+                automatic_notifications.append(
+                    (
+                        other_application.user,
+                        f"Отклик на «{other_application.project.title}» закрыт: достигнут лимит — {MAX_ACTIVE_PROJECTS} активных проекта.",
+                    )
+                )
 
         member_count = db.scalar(
             select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
@@ -424,6 +495,12 @@ def update_application_status(
             for remaining in remaining_applications:
                 remaining.status = ApplicationStatus.rejected
                 remaining.decision_note = "Команда проекта уже сформирована."
+                automatic_notifications.append(
+                    (
+                        remaining.user,
+                        f"Отклик на «{project.title}» закрыт: команда уже сформирована.",
+                    )
+                )
     else:
         project = db.get(Project, application.project_id)
         team = db.scalar(select(Team).where(Team.project_id == application.project_id))
@@ -496,8 +573,71 @@ def update_application_status(
         text=text,
         buttons=buttons,
     )
+    for affected_user, affected_text in automatic_notifications:
+        _send_user_message(affected_user, text=affected_text, buttons=buttons)
 
     return db.scalar(_admin_application_query().where(Application.id == application_id))
+
+
+@router.post("/applications/{application_id}/reset", response_model=AdminApplicationRead)
+def reset_application_decision(
+    application_id: int, db: Session = Depends(get_db)
+) -> Application:
+    """Returns an organizer decision to review and repairs team membership."""
+    application = db.scalar(
+        _admin_application_query().where(Application.id == application_id)
+    )
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Отклик не найден")
+    if application.status in {ApplicationStatus.pending, ApplicationStatus.withdrawn}:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Этот отклик нельзя вернуть на рассмотрение",
+        )
+
+    project = db.scalar(
+        select(Project).where(Project.id == application.project_id).with_for_update()
+    )
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
+    if project.status == ProjectStatus.completed:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Решения по завершённому проекту менять нельзя",
+        )
+    if application.status == ApplicationStatus.rejected and project.status != ProjectStatus.open:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Сначала откройте набор в проект, затем верните отклик на рассмотрение",
+        )
+
+    team = db.scalar(select(Team).where(Team.project_id == application.project_id))
+    if team is not None and application.status in {
+        ApplicationStatus.accepted,
+        ApplicationStatus.leave_requested,
+    }:
+        member = db.get(TeamMember, (team.id, application.user_id))
+        if member is not None:
+            db.delete(member)
+            db.flush()
+        if project.status == ProjectStatus.in_progress:
+            project.status = ProjectStatus.open
+
+    application.status = ApplicationStatus.pending
+    application.decision_note = None
+    db.commit()
+
+    _send_user_message(
+        application.user,
+        text=(
+            f"Организатор вернул твой отклик на «{application.project.title}» "
+            "на повторное рассмотрение."
+        ),
+        buttons=[[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]],
+    )
+    return db.scalar(
+        _admin_application_query().where(Application.id == application_id)
+    )
 
 
 @router.get(
@@ -508,7 +648,7 @@ def list_project_submissions(
     project_id: int, db: Session = Depends(get_db)
 ) -> list[ProjectSubmission]:
     if db.get(Project, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     return list(
         db.scalars(
             select(ProjectSubmission)
@@ -530,7 +670,7 @@ def review_project_submission(
 ) -> ProjectSubmission:
     submission_ref = db.get(ProjectSubmission, submission_id)
     if submission_ref is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сдача не найдена")
     db.scalar(
         select(Project.id)
         .where(Project.id == submission_ref.project_id)
@@ -543,14 +683,14 @@ def review_project_submission(
         .options(selectinload(ProjectSubmission.user), selectinload(ProjectSubmission.project))
     )
     if submission.project.status == ProjectStatus.completed:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Completed project submissions are locked")
+        raise HTTPException(status.HTTP_409_CONFLICT, "В завершённом проекте сдачи заблокированы")
     if submission.status != ProjectSubmissionStatus.submitted:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Submission is not awaiting review")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Эта сдача сейчас не ожидает проверки")
     next_status = ProjectSubmissionStatus(payload.status)
     if next_status != ProjectSubmissionStatus.approved and not payload.note:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "A review note is required when work is not approved",
+            "При отказе или возврате на доработку нужен комментарий",
         )
     submission.status = next_status
     submission.review_note = payload.note
@@ -581,7 +721,7 @@ def message_application_student(
 ) -> AdminMessageResult:
     application = db.scalar(_admin_application_query().where(Application.id == application_id))
     if application is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Отклик не найден")
 
     buttons = None
     if (
@@ -620,7 +760,7 @@ def get_project_team(project_id: int, db: Session = Depends(get_db)) -> Team:
         )
     )
     if team is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "This project has no team yet")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "У проекта пока нет команды")
     return team
 
 
@@ -635,7 +775,7 @@ def complete_project(
 ) -> Project:
     raise HTTPException(
         status.HTTP_410_GONE,
-        "Use the atomic finalize endpoint after every participant submission is approved",
+        "Завершайте проект после подтверждения результатов всех участников",
     )
 
 
@@ -648,9 +788,9 @@ def finalize_project(
         select(Project).where(Project.id == project_id).with_for_update()
     )
     if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status == ProjectStatus.completed:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Project is already completed")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Проект уже завершён")
 
     pending_leave_requests = db.scalar(
         select(func.count(Application.id)).where(
@@ -661,18 +801,18 @@ def finalize_project(
     if pending_leave_requests:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Resolve all team leave requests before finalizing the project",
+            "Сначала обработайте все запросы на выход из команды",
         )
 
     user_ids = [item.user_id for item in payload.confirmations]
     if len(user_ids) != len(set(user_ids)):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Duplicate user ids")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Участник указан несколько раз")
 
     team = db.scalar(select(Team).where(Team.project_id == project_id))
     if team is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Project has no team")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "У проекта нет команды")
     if team.status != "active":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Project team is not active")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Команда проекта уже не активна")
     team_user_ids = set(
         db.scalars(select(TeamMember.user_id).where(TeamMember.team_id == team.id))
     )
@@ -703,7 +843,7 @@ def finalize_project(
     if unapproved_user_ids:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"Every team member must have approved work: {unapproved_user_ids}",
+            f"Нужно подтвердить работу каждого участника: {unapproved_user_ids}",
         )
     roles_by_user = {
         member.user_id: member.role_title
@@ -743,6 +883,17 @@ def finalize_project(
     team.status = "completed"
     db.commit()
 
+    completed_users = list(db.scalars(select(User).where(User.id.in_(team_user_ids))))
+    for completed_user in completed_users:
+        _send_user_message(
+            completed_user,
+            text=(
+                f"Проект «{project.title}» завершён. Подтверждённый результат "
+                "добавлен в твоё портфолио."
+            ),
+            buttons=[[{"type": "callback", "text": "Моя команда", "payload": encode("t")}]],
+        )
+
     return db.scalar(
         select(Project)
         .where(Project.id == project_id)
@@ -765,5 +916,5 @@ def confirm_participation(
 ) -> list[ParticipationConfirmation]:
     raise HTTPException(
         status.HTTP_410_GONE,
-        "Participation is created only by the atomic finalize endpoint",
+        "Подтверждения создаются только при завершении проекта",
     )

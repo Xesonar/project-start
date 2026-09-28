@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { createPortfolioLink, getMyPortfolio, type PortfolioItem } from "@/api/portfolio";
+import {
+  createPortfolioLink,
+  getMyPortfolio,
+  getPortfolioLink,
+  regeneratePortfolioLink,
+  revokePortfolioLink,
+  type PortfolioItem,
+} from "@/api/portfolio";
 import { openExternalLink } from "@/max/webapp";
 
 export function PortfolioScreen() {
@@ -14,8 +21,11 @@ export function PortfolioScreen() {
   const load = useCallback(() => {
     setError(null);
     setItems(null);
-    getMyPortfolio()
-      .then(setItems)
+    Promise.all([getMyPortfolio(), getPortfolioLink()])
+      .then(([portfolioItems, link]) => {
+        setItems(portfolioItems);
+        setLinkUrl(link.slug ? `${window.location.origin}/p/${link.slug}` : null);
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка загрузки"));
   }, []);
 
@@ -42,6 +52,36 @@ export function PortfolioScreen() {
       }
     } catch (err) {
       setLinkError(err instanceof Error ? err.message : "Не удалось создать ссылку");
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const regenerateLink = async () => {
+    if (!window.confirm("Старая ссылка перестанет работать. Создать новую?")) return;
+    setCreatingLink(true);
+    setLinkError(null);
+    try {
+      const { slug } = await regeneratePortfolioLink();
+      setLinkUrl(`${window.location.origin}/p/${slug}`);
+      setCopied(false);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Не удалось обновить ссылку");
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const revokeLink = async () => {
+    if (!window.confirm("Закрыть публичный доступ к портфолио?")) return;
+    setCreatingLink(true);
+    setLinkError(null);
+    try {
+      await revokePortfolioLink();
+      setLinkUrl(null);
+      setCopied(false);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Не удалось закрыть доступ");
     } finally {
       setCreatingLink(false);
     }
@@ -87,6 +127,14 @@ export function PortfolioScreen() {
               <span className={`text-xs ${copied ? "text-emerald-600" : "text-slate-500"}`}>
                 {copied ? "скопировано ✓" : "скопируй ссылку вручную"}
               </span>
+            </div>
+            <div className="flex gap-3 text-xs">
+              <button type="button" disabled={creatingLink} onClick={() => void regenerateLink()} className="text-brand-700 underline disabled:opacity-50">
+                Создать новую ссылку
+              </button>
+              <button type="button" disabled={creatingLink} onClick={() => void revokeLink()} className="text-red-600 underline disabled:opacity-50">
+                Закрыть доступ
+              </button>
             </div>
           </div>
         ) : (

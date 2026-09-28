@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://project_start:project_start@db:5432/project_start"
 
     max_bot_token: str = ""
-    max_init_data_max_age_seconds: int = 24 * 60 * 60
+    max_init_data_max_age_seconds: int = 60 * 60
     # Verified against the X-Max-Bot-Api-Secret header on incoming webhook
     # calls (see app/api/bot_webhook.py) — this is the only thing standing
     # between "trust update.user as-is" and an unauthenticated caller.
@@ -25,15 +25,7 @@ class Settings(BaseSettings):
     auth_rate_limit_per_minute: int = 20
     webhook_rate_limit_per_minute: int = 120
     webhook_dedup_ttl_seconds: int = 10 * 60
-
-    # Demo mode creates passwordless synthetic users. It is off by default
-    # and production requires an extra explicit acknowledgement so a copied
-    # local .env cannot accidentally expose write access on the live service.
-    demo_mode: bool = False
-    allow_production_demo: bool = False
-    demo_user_ttl_days: int = 7
-    demo_max_user_id: int = -1
-    demo_user_name: str = "Демо-студент"
+    notification_retry_seconds: int = 30
 
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
@@ -56,10 +48,6 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET must be a random value of at least 32 characters")
         if self.admin_password == "admin" or len(self.admin_password) < 8:
             problems.append("ADMIN_PASSWORD must be at least 8 characters and not the default")
-        if self.demo_mode and not self.allow_production_demo:
-            problems.append(
-                "DEMO_MODE in production requires ALLOW_PRODUCTION_DEMO=true"
-            )
         if problems:
             raise ValueError("Unsafe production configuration: " + "; ".join(problems))
         return self

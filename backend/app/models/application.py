@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -10,7 +10,15 @@ from app.models.enums import ApplicationStatus
 class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
-        UniqueConstraint("user_id", "project_id", "project_role_id", name="uq_application_role"),
+        Index(
+            "uq_application_active_role",
+            "user_id",
+            "project_id",
+            "project_role_id",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'accepted', 'leave_requested')"),
+            sqlite_where=text("status IN ('pending', 'accepted', 'leave_requested')"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

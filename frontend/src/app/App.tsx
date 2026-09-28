@@ -6,7 +6,6 @@ import { AdminApp } from "@/screens/admin/AdminApp";
 import { CatalogScreen } from "@/screens/Catalog";
 import { HomeScreen } from "@/screens/Home";
 import { MyApplicationsScreen } from "@/screens/MyApplications";
-import { DemoLanding } from "@/screens/DemoLanding";
 import { OnboardingScreen } from "@/screens/Onboarding";
 import { PortfolioScreen } from "@/screens/Portfolio";
 import { PublicPortfolioScreen } from "@/screens/PublicPortfolio";
@@ -22,8 +21,11 @@ function StudentShell() {
   }
 
   if (status === "unavailable") {
-    // Web visitor without a MAX account — the demo door (POST /auth/demo).
-    return <DemoLanding onDemoReady={refreshMe} />;
+    return (
+      <CenteredMessage>
+        Откройте приложение из чата с ботом в MAX.
+      </CenteredMessage>
+    );
   }
 
   if (status === "error") {
@@ -48,6 +50,7 @@ function StudentShell() {
         />
       </Route>
       <Route path="/projects/:id" element={<ProjectDetailScreen />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

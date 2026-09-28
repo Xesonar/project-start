@@ -93,7 +93,7 @@ export function ProjectDetailScreen() {
     setApplyError(null);
     hapticSelect();
     try {
-      await createApplication(project.id, {
+      const created = await createApplication(project.id, {
         project_role_id: selectedRoleId,
         message: applicationMessage.trim() || null,
       });
@@ -105,17 +105,24 @@ export function ProjectDetailScreen() {
               application.project_role.id === selectedRoleId
             ),
         ),
-        {
-          id: -selectedRoleId,
-          status: "pending",
-          message: applicationMessage.trim() || null,
-          decision_note: null,
-          created_at: new Date().toISOString(),
-          project,
-          project_role: project.roles.find((role) => role.id === selectedRoleId)!,
-        },
+        created,
       ]);
       setApplyState("done");
+      setApplicationMessage("");
+      const appliedRoleId = selectedRoleId;
+      const blockedRoleIds = new Set(
+        [...(applications ?? []), created]
+          .filter(
+            (application) =>
+              application.project.id === project.id && blocksRoleSelection(application),
+          )
+          .map((application) => application.project_role.id),
+      );
+      setSelectedRoleId(
+        project.roles.find(
+          (role) => role.id !== appliedRoleId && !blockedRoleIds.has(role.id),
+        )?.id ?? null,
+      );
       hapticSuccess();
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : "Не удалось отправить отклик");
@@ -204,7 +211,6 @@ export function ProjectDetailScreen() {
               type="button"
               disabled={
                 project.status !== "open" ||
-                applyState === "done" ||
                 Boolean(existingApplication)
               }
               aria-pressed={selectedRoleId === role.id}
@@ -249,18 +255,6 @@ export function ProjectDetailScreen() {
         <Link to="/catalog" className="btn-primary mt-2 text-center">
           Найти открытый проект
         </Link>
-      ) : applyState === "done" ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg bg-ok-50 px-4 py-5 text-center animate-scale-in">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ok-600 text-2xl text-white">
-            ✓
-          </div>
-          <p className="text-sm font-semibold text-ok-700">
-            Отклик отправлен!
-          </p>
-          <p className="text-xs text-ok-700/80">
-            Статус — во вкладке «Отклики». Организатор ответит в чате MAX.
-          </p>
-        </div>
       ) : selectedRoleId === null && applications !== null ? (
         <Link to="/applications" className="btn-primary mt-2 text-center">
           Посмотреть мои отклики
@@ -289,6 +283,11 @@ export function ProjectDetailScreen() {
             {applyState === "submitting" ? "Отправляем..." : "Откликнуться"}
           </button>
         </div>
+      )}
+      {applyState === "done" && (
+        <p className="rounded-lg bg-ok-50 px-4 py-3 text-center text-sm font-medium text-ok-700 animate-scale-in">
+          ✓ Отклик отправлен. Можно выбрать другую роль или посмотреть статус во вкладке «Отклики».
+        </p>
       )}
       {applyError && <p className="text-sm text-red-500">{applyError}</p>}
     </div>

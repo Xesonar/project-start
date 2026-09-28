@@ -1,8 +1,8 @@
 import os
 
-# Deliberately a separate database (project_start_test), not the dev/demo one
+# Deliberately a separate database (project_start_test), not the local one
 # (project_start) that docker-compose seeds — this fixture TRUNCATEs every
-# table before each test, and pointing it at the demo database wipes
+# table before each test, and pointing it at the working database wipes
 # whatever you've clicked through in the browser. Same Postgres server
 # (localhost:5432, the docker-compose `db` service) is fine to reuse; the
 # database itself must exist first — see docs/testing.md.

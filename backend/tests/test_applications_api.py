@@ -97,7 +97,9 @@ def test_student_can_withdraw_pending_application_and_apply_again(client):
         json={"project_role_id": role_id, "message": "Передумал, хочу участвовать"},
     )
     assert reapplied.status_code == 201, reapplied.text
-    assert reapplied.json()["id"] == created["id"]
+    assert reapplied.json()["id"] != created["id"]
+    history = client.get("/me/applications", headers=headers).json()
+    assert [item["status"] for item in history[:2]] == ["pending", "withdrawn"]
     assert reapplied.json()["status"] == "pending"
     assert reapplied.json()["message"] == "Передумал, хочу участвовать"
 

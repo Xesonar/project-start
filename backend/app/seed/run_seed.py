@@ -1,4 +1,4 @@
-"""Idempotent demo-data seeding, run automatically on container startup."""
+"""Idempotent reference-data seeding, run automatically on container startup."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -7,12 +7,10 @@ from app.db.session import SessionLocal
 from app.models.enums import ProjectDifficulty, ProjectFormat, ProjectStatus, SkillLevel
 from app.models.organization import Organization
 from app.models.project import Project, ProjectRole, ProjectSkill
-from app.models.result import ParticipationConfirmation, ProjectResult
 from app.models.skill import Skill
 from app.seed.organizations_data import ORGANIZATIONS
 from app.seed.projects_data import PROJECTS
 from app.seed.skills_data import SKILLS
-from app.services.user_upsert import _DEMO_SKILL_NAMES, ensure_demo_user
 
 
 def seed_skills(db: Session) -> dict[str, Skill]:
@@ -79,96 +77,12 @@ def seed_projects(
             )
 
 
-_DEMO_PROJECT_TITLE = "Демо: навигатор по мероприятиям университета"
-
-
-def seed_demo_portfolio(db: Session) -> None:
-    """Gives the demo student one *confirmed* project.
-
-    The public demo link has to look alive the moment a judge opens it, so
-    this seeds a completed project + organiser confirmation for the demo
-    user. The project is deliberately not one of the 12 open catalog
-    projects (it is `completed`, so the catalog filters it out) — the
-    catalog count and recommendation tests stay exact.
-    """
-    user = ensure_demo_user(db, skill_names=_DEMO_SKILL_NAMES)
-
-    project = db.scalar(select(Project).where(Project.title == _DEMO_PROJECT_TITLE))
-    if project is None:
-        organization = db.scalar(
-            select(Organization).where(
-                Organization.name == "Университетский проектный офис"
-            )
-        ) or db.scalars(select(Organization)).first()
-        project = Project(
-            organization_id=organization.id,
-            title=_DEMO_PROJECT_TITLE,
-            description=(
-                "Прототип навигатора по мероприятиям университета: фильтры по "
-                "факультету, карточки активностей, расписание. Собран в рамках "
-                "демо-сценария платформы."
-            ),
-            difficulty=ProjectDifficulty.beginner,
-            status=ProjectStatus.completed,
-            deadline="14 дней",
-            format=ProjectFormat.hybrid,
-            participant_limit=4,
-            expected_result="Рабочий прототип мини-приложения и презентация.",
-            is_demo=True,
-        )
-        db.add(project)
-        db.flush()
-    else:
-        project.is_demo = True
-
-    project_result = db.scalar(
-        select(ProjectResult).where(ProjectResult.project_id == project.id)
-    )
-    if project_result is None:
-        project_result = ProjectResult(
-            project_id=project.id,
-            title="Рабочий прототип мини-приложения",
-            description=(
-                "Навигатор по мероприятиям: фильтры по факультету, карточки, "
-                "расписание — собрано и протестировано на реальных данных."
-            ),
-            result_url="https://example.com/project-result",
-        )
-        db.add(project_result)
-    else:
-        project_result.result_url = "https://example.com/project-result"
-
-    if (
-        db.scalar(
-            select(ParticipationConfirmation).where(
-                ParticipationConfirmation.user_id == user.id,
-                ParticipationConfirmation.project_id == project.id,
-            )
-        )
-        is None
-    ):
-        db.add(
-            ParticipationConfirmation(
-                project_id=project.id,
-                user_id=user.id,
-                confirmed_by="Университетский проектный офис",
-                role="Frontend developer",
-                contribution=(
-                    "Собрал интерфейс мини-приложения: карточки мероприятий, "
-                    "фильтры и навигация."
-                ),
-            )
-        )
-    db.flush()
-
-
 def main() -> None:
     db = SessionLocal()
     try:
         skills = seed_skills(db)
         organizations = seed_organizations(db)
         seed_projects(db, organizations, skills)
-        seed_demo_portfolio(db)
         db.commit()
         print(
             f"Seed: {len(skills)} skills, {len(organizations)} organizations, "

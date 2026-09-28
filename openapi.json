@@ -46,55 +46,6 @@
         }
       }
     },
-    "/auth/demo": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Auth Demo",
-        "description": "Passwordless web entry point for judges/organizers without a MAX account.\n\nThe demo student is a real User row with a filled profile, so every screen\n(AI recommendations, applications, portfolio) works identically to a MAX\nlogin. Disabled unless DEMO_MODE=true.",
-        "operationId": "auth_demo_auth_demo_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/DemoAuthRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/admin/login": {
       "post": {
         "tags": [
@@ -910,6 +861,50 @@
             "HTTPBearer": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Organization",
+        "operationId": "create_organization_admin_organizations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/admin/projects/{project_id}/publish": {
@@ -935,6 +930,63 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/projects/{project_id}/status": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Project Status",
+        "operationId": "update_project_status_admin_projects__project_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectStatusUpdate"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1145,6 +1197,54 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminApplicationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/applications/{application_id}/reset": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reset Application Decision",
+        "description": "Returns an organizer decision to review and repairs team membership.",
+        "operationId": "reset_application_decision_admin_applications__application_id__reset_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Application Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1470,6 +1570,54 @@
       }
     },
     "/me/portfolio/link": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get My Portfolio Link",
+        "operationId": "get_my_portfolio_link_me_portfolio_link_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioLinkState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Regenerate My Portfolio Link",
+        "operationId": "regenerate_my_portfolio_link_me_portfolio_link_put",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioLinkResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
       "post": {
         "tags": [
           "portfolio"
@@ -1487,6 +1635,23 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Delete My Portfolio Link",
+        "operationId": "delete_my_portfolio_link_me_portfolio_link_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           }
         },
         "security": [
@@ -1976,10 +2141,6 @@
             ],
             "title": "Avatar Url"
           },
-          "is_demo": {
-            "type": "boolean",
-            "title": "Is Demo"
-          },
           "profile": {
             "anyOf": [
               {
@@ -1996,7 +2157,6 @@
           "id",
           "name",
           "avatar_url",
-          "is_demo",
           "profile"
         ],
         "title": "ApplicantRead"
@@ -2178,21 +2338,6 @@
         ],
         "title": "ConfirmationRead"
       },
-      "DemoAuthRequest": {
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 8,
-            "title": "Session Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "title": "DemoAuthRequest"
-      },
       "ExperienceLevel": {
         "type": "string",
         "enum": [
@@ -2243,6 +2388,40 @@
           "init_data"
         ],
         "title": "MaxAuthRequest"
+      },
+      "OrganizationCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 3,
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Type"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "type"
+        ],
+        "title": "OrganizationCreate"
       },
       "OrganizationRead": {
         "properties": {
@@ -2316,6 +2495,26 @@
           "slug"
         ],
         "title": "PortfolioLinkResponse"
+      },
+      "PortfolioLinkState": {
+        "properties": {
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug"
+        ],
+        "title": "PortfolioLinkState"
       },
       "PortfolioPublic": {
         "properties": {
@@ -3212,6 +3411,23 @@
           "completed"
         ],
         "title": "ProjectStatus"
+      },
+      "ProjectStatusUpdate": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ProjectStatusUpdate"
       },
       "ProjectSubmissionStatus": {
         "type": "string",

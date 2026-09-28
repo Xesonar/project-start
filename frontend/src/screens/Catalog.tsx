@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   listProjects,
   type ProjectDifficulty,
+  type ProjectFormat,
   type ProjectListItem,
   type ProjectSort,
 } from "@/api/projects";
@@ -21,21 +22,35 @@ const SORT_OPTIONS: { value: ProjectSort; label: string }[] = [
   { value: "difficulty", label: "От простых" },
 ];
 
+const FORMAT_OPTIONS: { value: ProjectFormat | "all"; label: string }[] = [
+  { value: "all", label: "Любой формат" },
+  { value: "online", label: "Онлайн" },
+  { value: "offline", label: "Очно" },
+  { value: "hybrid", label: "Гибрид" },
+];
+
 export function CatalogScreen() {
   const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<ProjectDifficulty | "all">("all");
   const [sort, setSort] = useState<ProjectSort>("newest");
+  const [format, setFormat] = useState<ProjectFormat | "all">("all");
+  const [role, setRole] = useState("");
 
   const load = () => {
     setError(null);
     setProjects(null);
-    listProjects({ ...(difficulty === "all" ? {} : { difficulty }), sort })
+    listProjects({
+      ...(difficulty === "all" ? {} : { difficulty }),
+      ...(format === "all" ? {} : { format }),
+      ...(role.trim() ? { role: role.trim() } : {}),
+      sort,
+    })
       .then(setProjects)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка загрузки"));
   };
 
-  useEffect(load, [difficulty, sort]);
+  useEffect(load, [difficulty, format, role, sort]);
 
   return (
     <div className="screen">
@@ -56,6 +71,24 @@ export function CatalogScreen() {
             {opt.label}
           </button>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <select
+          value={format}
+          onChange={(e) => setFormat(e.target.value as ProjectFormat | "all")}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          aria-label="Формат проекта"
+        >
+          {FORMAT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <input
+          value={role}
+          onChange={(e) => setRole(e.target.value.slice(0, 80))}
+          placeholder="Роль, например Frontend"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          aria-label="Поиск по роли"
+        />
       </div>
 
       <select
