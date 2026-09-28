@@ -54,24 +54,33 @@ def _generate_slug(db: Session, base: str) -> str:
 
 def ensure_portfolio_slug(db: Session, user: User) -> PortfolioLinkResponse:
     """Creates the student's shareable slug, or returns the existing one."""
-    if not user.portfolio_slug:
-        user.portfolio_slug = _generate_slug(db, _slug_base(user.name))
+    locked_user = db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked_user is None:
+        raise RuntimeError("Пользователь не найден")
+    if not locked_user.portfolio_slug:
+        locked_user.portfolio_slug = _generate_slug(db, _slug_base(locked_user.name))
         db.commit()
-        db.refresh(user)
-    return PortfolioLinkResponse(slug=user.portfolio_slug)
+        db.refresh(locked_user)
+    return PortfolioLinkResponse(slug=locked_user.portfolio_slug)
 
 
 def rotate_portfolio_slug(db: Session, user: User) -> PortfolioLinkResponse:
     """Invalidates the old public URL and returns a newly generated one."""
-    user.portfolio_slug = _generate_slug(db, _slug_base(user.name))
+    locked_user = db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked_user is None:
+        raise RuntimeError("Пользователь не найден")
+    locked_user.portfolio_slug = _generate_slug(db, _slug_base(locked_user.name))
     db.commit()
-    db.refresh(user)
-    return PortfolioLinkResponse(slug=user.portfolio_slug)
+    db.refresh(locked_user)
+    return PortfolioLinkResponse(slug=locked_user.portfolio_slug)
 
 
 def revoke_portfolio_slug(db: Session, user: User) -> None:
     """Makes the public portfolio private again immediately."""
-    user.portfolio_slug = None
+    locked_user = db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked_user is None:
+        return
+    locked_user.portfolio_slug = None
     db.commit()
 
 

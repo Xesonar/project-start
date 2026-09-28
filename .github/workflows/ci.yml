@@ -32,7 +32,6 @@ jobs:
       MAX_BOT_TOKEN: test-bot-token
       JWT_SECRET: ci-secret
       ADMIN_PASSWORD: ci-admin
-      DEMO_MODE: "true"
 
     steps:
       - uses: actions/checkout@v7

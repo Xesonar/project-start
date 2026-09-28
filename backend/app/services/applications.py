@@ -6,6 +6,7 @@ from app.models.application import Application
 from app.models.enums import ApplicationStatus, ProjectStatus
 from app.models.project import Project, ProjectRole
 from app.models.team import Team, TeamMember
+from app.models.user import User
 
 
 MAX_ACTIVE_PROJECTS = 3
@@ -24,12 +25,20 @@ class ApplicationError(Exception):
 def create_application(
     db: Session, *, user_id: int, project_id: int, project_role_id: int, message: str | None = None
 ) -> Application:
-    project = db.get(Project, project_id)
+    # Serialize applying with organizer status changes. Without this lock an
+    # application could slip in while the organizer is closing recruitment.
+    project = db.scalar(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
     if project is None:
         raise ApplicationError("project_not_found", "Проект не найден")
     if project.status != ProjectStatus.open:
         raise ApplicationError("project_not_open", "Набор в проект уже закрыт")
 
+    # Acceptance also locks this row before changing the student's active
+    # project count. That keeps a just-created pending application from
+    # escaping automatic rejection when the third team slot is filled.
+    db.scalar(select(User.id).where(User.id == user_id).with_for_update())
     active_team_count = db.scalar(
         select(func.count(func.distinct(TeamMember.team_id)))
         .join(Team, Team.id == TeamMember.team_id)
@@ -81,7 +90,7 @@ def withdraw_application(db: Session, *, user_id: int, application_id: int) -> A
         select(Application).where(
             Application.id == application_id,
             Application.user_id == user_id,
-        )
+        ).with_for_update()
     )
     if application is None:
         raise ApplicationError("application_not_found", "Отклик не найден")
@@ -104,7 +113,7 @@ def request_team_leave(db: Session, *, user_id: int, application_id: int) -> App
         select(Application).where(
             Application.id == application_id,
             Application.user_id == user_id,
-        )
+        ).with_for_update()
     )
     if application is None:
         raise ApplicationError("application_not_found", "Отклик не найден")
@@ -115,7 +124,16 @@ def request_team_leave(db: Session, *, user_id: int, application_id: int) -> App
             "not_accepted",
             "Запросить выход можно только после принятия в команду",
         )
-    if application.project.status == ProjectStatus.completed:
+    # Finalization locks the same project row first. Waiting for that lock
+    # guarantees a leave request cannot appear just after completion.
+    project = db.scalar(
+        select(Project)
+        .where(Project.id == application.project_id)
+        .with_for_update()
+    )
+    if project is None:
+        raise ApplicationError("project_not_found", "Проект не найден")
+    if project.status == ProjectStatus.completed:
         raise ApplicationError(
             "project_completed",
             "Состав завершённого проекта изменить нельзя",

@@ -220,6 +220,7 @@ def update_project_status(
     payload: ProjectStatusUpdate,
     db: Session = Depends(get_db),
 ) -> Project:
+    closed_applications: list[Application] = []
     project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
@@ -244,8 +245,29 @@ def update_project_status(
                 status.HTTP_409_CONFLICT,
                 "Нельзя открыть набор: команда уже заполнена",
             )
+    elif project.status == ProjectStatus.open:
+        closed_applications = list(
+            db.scalars(
+                _admin_application_query().where(
+                    Application.project_id == project_id,
+                    Application.status == ApplicationStatus.pending,
+                )
+            )
+        )
+        for application in closed_applications:
+            application.status = ApplicationStatus.rejected
+            application.decision_note = "Набор закрыт организатором."
     project.status = next_status
     db.commit()
+
+    for application in closed_applications:
+        _send_user_message(
+            application.user,
+            text=(
+                f"Отклик на «{project.title}» закрыт: организатор завершил набор команды."
+            ),
+            buttons=[[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]],
+        )
     return db.scalar(
         select(Project)
         .where(Project.id == project_id)
@@ -312,7 +334,11 @@ def update_application_status(
     application_id: int, payload: ApplicationStatusUpdate, db: Session = Depends(get_db)
 ) -> Application:
     automatic_notifications: list[tuple[User, str]] = []
-    application = db.scalar(_admin_application_query().where(Application.id == application_id))
+    application = db.scalar(
+        _admin_application_query()
+        .where(Application.id == application_id)
+        .with_for_update()
+    )
     if application is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Отклик не найден")
     if application.status == ApplicationStatus.withdrawn:
@@ -585,7 +611,9 @@ def reset_application_decision(
 ) -> Application:
     """Returns an organizer decision to review and repairs team membership."""
     application = db.scalar(
-        _admin_application_query().where(Application.id == application_id)
+        _admin_application_query()
+        .where(Application.id == application_id)
+        .with_for_update()
     )
     if application is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Отклик не найден")
@@ -784,6 +812,7 @@ def finalize_project(
     project_id: int, payload: ProjectFinalizeRequest, db: Session = Depends(get_db)
 ) -> Project:
     """Atomically save the result, verified contributions and completed state."""
+    closed_applications: list[Application] = []
     project = db.scalar(
         select(Project).where(Project.id == project_id).with_for_update()
     )
@@ -804,6 +833,21 @@ def finalize_project(
             "Сначала обработайте все запросы на выход из команды",
         )
 
+    # Finalization is also the hard end of recruitment. This safety net
+    # handles projects completed directly from an open state and legacy
+    # pending applications created before closing recruitment became final.
+    closed_applications = list(
+        db.scalars(
+            _admin_application_query().where(
+                Application.project_id == project_id,
+                Application.status == ApplicationStatus.pending,
+            )
+        )
+    )
+    for application in closed_applications:
+        application.status = ApplicationStatus.rejected
+        application.decision_note = "Проект завершён, набор закрыт."
+
     user_ids = [item.user_id for item in payload.confirmations]
     if len(user_ids) != len(set(user_ids)):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Участник указан несколько раз")
@@ -822,7 +866,8 @@ def finalize_project(
         unknown_user_ids = sorted(provided_user_ids - team_user_ids)
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Confirmation list must exactly match the team; missing={missing_user_ids}, unknown={unknown_user_ids}",
+            "Список подтверждений должен точно совпадать с командой: "
+            f"не указаны={missing_user_ids}, лишние={unknown_user_ids}",
         )
 
     submissions = list(
@@ -892,6 +937,12 @@ def finalize_project(
                 "добавлен в твоё портфолио."
             ),
             buttons=[[{"type": "callback", "text": "Моя команда", "payload": encode("t")}]],
+        )
+    for application in closed_applications:
+        _send_user_message(
+            application.user,
+            text=f"Отклик на «{project.title}» закрыт: проект уже завершён.",
+            buttons=[[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]],
         )
 
     return db.scalar(

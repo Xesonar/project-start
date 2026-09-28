@@ -5,9 +5,9 @@ authentication:
   student:
     setup:
       method: POST
-      path: /auth/demo
+      path: /auth/max
       body:
-        session_id: "technical-check-session"
+        init_data: "${MAX_INIT_DATA}"
     token_json_path: access_token
   admin:
     setup:
@@ -26,17 +26,6 @@ checks:
     expected_response:
       type: object
       required: [status]
-  - id: demo_auth
-    description: Create an isolated demo student session
-    method: POST
-    path: /auth/demo
-    role: anonymous
-    body:
-      session_id: "technical-check-session"
-    expected_status: 200
-    expected_response:
-      type: object
-      required: [access_token, token_type]
   - id: current_student
     description: Return the authenticated student and measured profile
     method: GET

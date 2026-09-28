@@ -38,7 +38,9 @@ _REQUIRED_RATING = {"beginner": 2, "intermediate": 3, "advanced": 4}
 
 def _skill_overlap(project: Project, user_rating_by_skill_id: dict[int, int]) -> float:
     if not project.required_skills:
-        return 0.0
+        # No declared requirements means there is no skill gap. Keep this in
+        # sync with the frontend match ring, which also treats it as 100%.
+        return 1.0
     credit = 0.0
     for required in project.required_skills:
         rating = user_rating_by_skill_id.get(required.skill_id, 0)

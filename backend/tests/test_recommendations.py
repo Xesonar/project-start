@@ -1,6 +1,23 @@
 from tests.test_max_auth import build_init_data
 
 
+def test_project_without_skill_requirements_has_full_skill_match():
+    from types import SimpleNamespace
+
+    from app.services.recommendation import score_project
+
+    project = SimpleNamespace(
+        difficulty=SimpleNamespace(value="beginner"),
+        roles=[],
+        required_skills=[],
+    )
+
+    score, breakdown = score_project(project, {}, None)
+
+    assert score == 0.4
+    assert breakdown["skills"] == 0.4
+
+
 def test_llm_explains_without_changing_deterministic_order(monkeypatch):
     from types import SimpleNamespace
 

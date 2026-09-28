@@ -102,6 +102,7 @@ def request_application_team_leave(
     except ApplicationError as exc:
         status_by_reason = {
             "application_not_found": status.HTTP_404_NOT_FOUND,
+            "project_not_found": status.HTTP_404_NOT_FOUND,
             "not_accepted": status.HTTP_409_CONFLICT,
             "project_completed": status.HTTP_409_CONFLICT,
         }

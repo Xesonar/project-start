@@ -135,6 +135,15 @@
   .dark .text-danger-700 { @apply text-red-300; }
   .dark .bg-warn-50 { @apply bg-amber-950/60; }
   .dark .text-warn-700 { @apply text-amber-300; }
+  .dark .bg-red-50 { @apply bg-red-950/60; }
+  .dark .border-red-200 { @apply border-red-900; }
+  .dark .text-red-500,
+  .dark .text-red-600 { @apply text-red-300; }
+  .dark .bg-amber-50 { @apply bg-amber-950/60; }
+  .dark .text-amber-700 { @apply text-amber-300; }
+  .dark .bg-emerald-50 { @apply bg-emerald-950/60; }
+  .dark .text-emerald-600,
+  .dark .text-emerald-700 { @apply text-emerald-300; }
   .dark input,
   .dark textarea,
   .dark select {

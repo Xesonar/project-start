@@ -166,6 +166,28 @@ def test_admin_can_close_and_reopen_recruitment(client, monkeypatch):
     assert reopened.json()["status"] == "open"
 
 
+def test_closing_recruitment_rejects_pending_applications(client, monkeypatch):
+    student_headers = _student_headers(client, 205)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    monkeypatch.setattr("app.services.max_bot_client.send_message", lambda **_kwargs: {})
+
+    response = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "in_progress"},
+    )
+
+    assert response.status_code == 200
+    updated = next(
+        item
+        for item in client.get("/me/applications", headers=student_headers).json()
+        if item["id"] == application["id"]
+    )
+    assert updated["status"] == "rejected"
+    assert updated["decision_note"] == "Набор закрыт организатором."
+
+
 def test_admin_rejects_project_when_role_slots_cannot_fill_team(client, monkeypatch):
     from app.seed.run_seed import main as run_seed
 
