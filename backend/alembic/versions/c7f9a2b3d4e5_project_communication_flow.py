@@ -17,7 +17,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'leave_requested'")
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'leave_requested'")
     op.add_column("applications", sa.Column("decision_note", sa.Text(), nullable=True))
     op.add_column("projects", sa.Column("team_chat_url", sa.String(length=1024), nullable=True))
 

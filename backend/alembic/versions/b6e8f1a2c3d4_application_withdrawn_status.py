@@ -16,7 +16,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'withdrawn'")
+    # PostgreSQL requires a commit before a newly added enum value may be used
+    # by later migrations in the same `alembic upgrade head` run.
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'withdrawn'")
 
 
 def downgrade() -> None:
