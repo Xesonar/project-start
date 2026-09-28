@@ -59,8 +59,8 @@ export function PortfolioScreen() {
         <div>
           <p className="text-sm font-semibold text-slate-900">Отправить работодателю</p>
           <p className="mt-0.5 text-xs leading-snug text-slate-600">
-            Публичная страница с подтверждёнными проектами. Без контактов и
-            личных данных — только опыт.
+            Публичная страница с именем, навыками и подтверждёнными проектами.
+            Контакты и ссылки профиля не публикуются.
           </p>
         </div>
         {linkUrl ? (

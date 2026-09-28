@@ -44,6 +44,11 @@ class _ExpiringRequestGuard:
             self._events[key] = now + ttl_seconds
             return True
 
+    def forget_event(self, key: str) -> None:
+        """Release a failed event so the sender can retry it."""
+        with self._lock:
+            self._events.pop(key, None)
+
     def clear(self) -> None:
         with self._lock:
             self._requests.clear()

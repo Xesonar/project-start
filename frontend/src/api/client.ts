@@ -1,6 +1,7 @@
-import { clearAdminToken, getAdminToken, getToken } from "./token";
+import { clearAdminToken, clearToken, getAdminToken, getToken } from "./token";
 
 export const ADMIN_UNAUTHORIZED_EVENT = "project-start:admin-unauthorized";
+export const STUDENT_UNAUTHORIZED_EVENT = "project-start:student-unauthorized";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -67,6 +68,9 @@ export async function apiRequest<T>(
     if (auth === "admin" && response.status === 401) {
       clearAdminToken();
       window.dispatchEvent(new Event(ADMIN_UNAUTHORIZED_EVENT));
+    } else if (auth === true && response.status === 401) {
+      clearToken();
+      window.dispatchEvent(new Event(STUDENT_UNAUTHORIZED_EVENT));
     }
     throw new ApiError(response.status, await readErrorMessage(response));
   }

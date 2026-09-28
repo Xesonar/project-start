@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { adminLogin } from "@/api/admin";
+import { ApiError } from "@/api/client";
 import { setAdminToken } from "@/api/token";
 
 export function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -16,8 +17,14 @@ export function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
       const { access_token } = await adminLogin(password);
       setAdminToken(access_token);
       onLoggedIn();
-    } catch {
-      setError("Неверный пароль");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Неверный пароль");
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError("Слишком много попыток. Подожди минуту.");
+      } else {
+        setError("Не удалось связаться с сервером");
+      }
     } finally {
       setLoading(false);
     }

@@ -574,6 +574,45 @@ def test_admin_can_message_student_through_max_bot(client, monkeypatch):
     assert project["title"] in sent[0]["text"]
 
 
+def test_admin_does_not_call_max_for_demo_student(client, monkeypatch):
+    from app.models.user import User
+    from app.db.session import SessionLocal
+    from app.seed.run_seed import main as run_seed
+
+    run_seed()
+    admin_headers = _admin_headers(client, monkeypatch)
+    project = client.get("/projects").json()[0]
+    detail = client.get(f"/projects/{project['id']}").json()
+    with SessionLocal() as db:
+        demo_user = User(max_user_id=-999, name="Демо", is_demo=True)
+        db.add(demo_user)
+        db.commit()
+        db.refresh(demo_user)
+        demo_user_id = demo_user.id
+    from app.core.security import create_access_token
+
+    demo_headers = {
+        "Authorization": f"Bearer {create_access_token(subject=demo_user_id, role='student')}"
+    }
+    application = client.post(
+        f"/projects/{project['id']}/applications",
+        headers=demo_headers,
+        json={"project_role_id": detail["roles"][0]["id"]},
+    ).json()
+
+    def unexpected_send(**kwargs):
+        raise AssertionError("MAX must not be called for a demo user")
+
+    monkeypatch.setattr("app.api.admin.max_bot_client.send_message", unexpected_send)
+    response = client.post(
+        f"/admin/applications/{application['id']}/message",
+        headers=admin_headers,
+        json={"text": "Проверка"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"delivered": False}
+
+
 def test_student_requests_team_leave_and_admin_confirms(client, monkeypatch):
     student_headers = _student_headers(client, 215)
     admin_headers = _admin_headers(client, monkeypatch)

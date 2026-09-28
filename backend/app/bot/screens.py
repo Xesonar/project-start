@@ -3,7 +3,7 @@ DB session passed in — reuses the same models/queries as the REST API
 (app/api/projects.py, app/api/applications.py, app/api/teams.py) rather than
 re-deriving business rules for the chat surface."""
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import selectinload
 
 from app.bot.payload import Action, encode
@@ -270,26 +270,27 @@ def build_leave_request_result(db, user: User, application_id: int) -> tuple[str
 
 
 def build_my_team(db, user: User) -> tuple[str, Buttons]:
-    team_members = list(
+    all_members = list(
         db.scalars(
             select(TeamMember)
             .join(Team, Team.id == TeamMember.team_id)
-            .where(TeamMember.user_id == user.id, Team.status == "active")
-            .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
+            .where(
+                TeamMember.user_id == user.id,
+                Team.status.in_(["active", "completed"]),
+            )
+            .order_by(
+                case((Team.status == "active", 0), else_=1),
+                TeamMember.joined_at.desc(),
+                TeamMember.team_id.desc(),
+            )
         )
     )
-    showing_completed = False
-    if not team_members:
-        completed_member = db.scalar(
-            select(TeamMember)
-            .join(Team, Team.id == TeamMember.team_id)
-            .where(TeamMember.user_id == user.id, Team.status == "completed")
-            .order_by(TeamMember.joined_at.desc(), TeamMember.team_id.desc())
-        )
-        if completed_member is None:
-            return "Пока ты не в команде — дождись решения по своим откликам.", [[_HOME_BUTTON]]
-        team_members = [completed_member]
-        showing_completed = True
+    if not all_members:
+        return "Пока ты не в команде — дождись решения по своим откликам.", [[_HOME_BUTTON]]
+
+    active_members = [member for member in all_members if member.team.status == "active"]
+    completed_members = [member for member in all_members if member.team.status == "completed"][:3]
+    team_members = [*active_members, *completed_members]
 
     teams = list(
         db.scalars(
@@ -304,13 +305,16 @@ def build_my_team(db, user: User) -> tuple[str, Buttons]:
     teams_by_id = {team.id: team for team in teams}
     ordered_teams = [teams_by_id[member.team_id] for member in team_members]
 
-    lines = ["Последняя завершённая команда:" if showing_completed else "Мои команды:"]
+    lines = ["Мои команды:"]
     buttons: Buttons = []
     for team in ordered_teams:
-        lines.extend(["", team.project.title, team.project.organization.name, "Команда:"])
+        status_label = "в работе" if team.status == "active" else "завершён"
+        lines.extend(
+            ["", f"{team.project.title} · {status_label}", team.project.organization.name, "Команда:"]
+        )
         for member in team.members:
             lines.append(f"— {member.user.name} ({member.role_title})")
-        if team.project.team_chat_url and not showing_completed:
+        if team.project.team_chat_url and team.status == "active":
             buttons.append(
                 [
                     {

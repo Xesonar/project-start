@@ -28,9 +28,9 @@ def create_application(
 ) -> Application:
     project = db.get(Project, project_id)
     if project is None:
-        raise ApplicationError("project_not_found", "Project not found")
+        raise ApplicationError("project_not_found", "Проект не найден")
     if project.status != ProjectStatus.open:
-        raise ApplicationError("project_not_open", "Project is not open for applications")
+        raise ApplicationError("project_not_open", "Набор в проект уже закрыт")
 
     active_team_count = db.scalar(
         select(func.count(func.distinct(TeamMember.team_id)))
@@ -40,12 +40,12 @@ def create_application(
     if active_team_count >= MAX_ACTIVE_PROJECTS:
         raise ApplicationError(
             "already_in_team",
-            f"You already participate in {MAX_ACTIVE_PROJECTS} active projects",
+            f"У тебя уже есть {MAX_ACTIVE_PROJECTS} активных проекта",
         )
 
     role = db.get(ProjectRole, project_role_id)
     if role is None or role.project_id != project_id:
-        raise ApplicationError("invalid_role", "Role does not belong to this project")
+        raise ApplicationError("invalid_role", "Эта роль недоступна в проекте")
 
     existing = db.scalar(
         select(Application).where(
@@ -59,7 +59,7 @@ def create_application(
             ApplicationStatus.withdrawn,
             ApplicationStatus.rejected,
         }:
-            raise ApplicationError("duplicate", "You already applied for this role")
+            raise ApplicationError("duplicate", "Ты уже откликнулся на эту роль")
         existing.status = ApplicationStatus.pending
         existing.message = message
         existing.decision_note = None
@@ -76,7 +76,7 @@ def create_application(
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise ApplicationError("duplicate", "You already applied for this role") from exc
+        raise ApplicationError("duplicate", "Ты уже откликнулся на эту роль") from exc
 
     db.refresh(application)
     return application

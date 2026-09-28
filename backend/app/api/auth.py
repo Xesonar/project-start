@@ -12,6 +12,7 @@ from app.models.enums import UserRole
 from app.schemas.auth import AdminLoginRequest, DemoAuthRequest, MaxAuthRequest, TokenResponse
 from app.services.max_auth import InitDataError, validate_init_data
 from app.services.user_upsert import (
+    cleanup_stale_demo_users,
     ensure_demo_portfolio_confirmation,
     ensure_demo_user,
     upsert_max_user,
@@ -77,6 +78,8 @@ def auth_demo(
         )
         demo_max_user_id = -max(2, digest & ((1 << 63) - 1))
 
+    cleanup_stale_demo_users(db, keep_max_user_id=demo_max_user_id)
+
     user = ensure_demo_user(
         db,
         max_user_id=demo_max_user_id,
@@ -95,6 +98,6 @@ def admin_login(payload: AdminLoginRequest, request: Request) -> TokenResponse:
         window_seconds=60,
     )
     if not hmac.compare_digest(payload.password, settings.admin_password):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid admin password")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный пароль")
     token = create_access_token(subject=0, role=UserRole.admin.value)
     return TokenResponse(access_token=token)

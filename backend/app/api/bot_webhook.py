@@ -60,33 +60,39 @@ def bot_webhook(
         logger.warning("Ignoring MAX update with non-positive user_id")
         return {"ok": True}
 
+    event_key = stable_event_key(body)
     if not request_guard.first_event(
-        stable_event_key(body),
+        event_key,
         ttl_seconds=settings.webhook_dedup_ttl_seconds,
     ):
         logger.info("Ignoring duplicate MAX update")
         return {"ok": True, "duplicate": True}
 
-    user = upsert_max_user(
-        db,
-        max_user_id=max_user_id,
-        first_name=max_user.get("first_name") or max_user.get("name"),
-        last_name=max_user.get("last_name"),
-        username=max_user.get("username"),
-    )
+    try:
+        user = upsert_max_user(
+            db,
+            max_user_id=max_user_id,
+            first_name=max_user.get("first_name") or max_user.get("name"),
+            last_name=max_user.get("last_name"),
+            username=max_user.get("username"),
+        )
 
-    if update_type == "bot_started":
-        text, buttons = screens.build_home(db, user)
-        max_bot_client.send_message(user_id=user.max_user_id, text=text, buttons=buttons)
+        if update_type == "bot_started":
+            text, buttons = screens.build_home(db, user)
+            max_bot_client.send_message(user_id=user.max_user_id, text=text, buttons=buttons)
+            return {"ok": True}
+
+        if update_type == "message_callback":
+            callback = body.get("callback") or {}
+            callback_id = callback.get("callback_id")
+            raw_payload = callback.get("payload") or ""
+            if callback_id:
+                text, buttons = screens.route(db, user, decode(raw_payload))
+                max_bot_client.answer_callback(callback_id=callback_id, text=text, buttons=buttons)
+            return {"ok": True}
+
         return {"ok": True}
-
-    if update_type == "message_callback":
-        callback = body.get("callback") or {}
-        callback_id = callback.get("callback_id")
-        raw_payload = callback.get("payload") or ""
-        if callback_id:
-            text, buttons = screens.route(db, user, decode(raw_payload))
-            max_bot_client.answer_callback(callback_id=callback_id, text=text, buttons=buttons)
-        return {"ok": True}
-
-    return {"ok": True}
+    except Exception:
+        db.rollback()
+        request_guard.forget_event(event_key)
+        raise

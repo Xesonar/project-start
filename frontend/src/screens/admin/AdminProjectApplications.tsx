@@ -258,6 +258,11 @@ export function AdminProjectApplications() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold">{app.user.name}</p>
+                  {app.user.is_demo && (
+                    <p className="mt-0.5 text-xs font-medium text-violet-600">
+                      Демо-пользователь — сообщений в MAX нет
+                    </p>
+                  )}
                   <p className="text-xs text-slate-500">
                     {app.user.profile?.specialty ?? "—"} ·{" "}
                     {app.user.profile?.experience_level ?? "уровень не указан"}
@@ -278,6 +283,7 @@ export function AdminProjectApplications() {
               {app.status === "pending" && (
                 <div className="mt-3 flex flex-col gap-2">
                   <textarea
+                    disabled={app.user.is_demo}
                     value={rejectionDrafts[app.id] ?? ""}
                     onChange={(event) =>
                       setRejectionDrafts((current) => ({
@@ -437,7 +443,11 @@ export function AdminProjectApplications() {
                   />
                   <button
                     type="button"
-                    disabled={sendingMessageId === app.id || !messageDrafts[app.id]?.trim()}
+                    disabled={
+                      app.user.is_demo ||
+                      sendingMessageId === app.id ||
+                      !messageDrafts[app.id]?.trim()
+                    }
                     onClick={() => void handleMessageStudent(app.id)}
                     className="mt-2 rounded-lg border border-brand-200 px-3 py-2 text-xs font-medium text-brand-700 disabled:opacity-40"
                   >

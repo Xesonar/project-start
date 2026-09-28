@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { authDemo } from "@/api/auth";
+import { ApiError } from "@/api/client";
 import { setToken } from "@/api/token";
 import { getMaxWebApp } from "@/max/webapp";
 
@@ -23,7 +24,13 @@ export function DemoLanding({ onDemoReady }: { onDemoReady: () => Promise<void> 
       setToken(access_token);
       await onDemoReady();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Демо недоступно");
+      setError(
+        err instanceof ApiError && err.status === 403
+          ? "Веб-доступ отключён. Открой приложение через бота в MAX."
+          : err instanceof Error
+            ? err.message
+            : "Веб-версия временно недоступна",
+      );
     } finally {
       setLoading(false);
     }

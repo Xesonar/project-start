@@ -14,6 +14,7 @@ class ApplicantRead(BaseModel):
     id: int
     name: str
     avatar_url: str | None
+    is_demo: bool
     profile: ProfileRead | None
 
 

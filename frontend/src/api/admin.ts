@@ -17,6 +17,7 @@ export interface AdminApplicant {
   id: number;
   name: string;
   avatar_url: string | null;
+  is_demo: boolean;
   profile: Profile | null;
 }
 

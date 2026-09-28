@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getMyApplications, type Application } from "@/api/applications";
 
 const SEEN_KEY = "project-start.seen_applications";
+const SEEN_EVENT = "project-start:applications-seen";
 
 function getSeenIds(): Set<number> {
   try {
@@ -19,6 +20,7 @@ export function markApplicationsSeen(applications: Application[]): void {
       .filter((a) => a.status === "accepted" || a.status === "rejected")
       .map((a) => a.id);
     sessionStorage.setItem(SEEN_KEY, JSON.stringify(decidedIds));
+    window.dispatchEvent(new Event(SEEN_EVENT));
   } catch {
     // sessionStorage unavailable — badge just won't persist across reloads
   }
@@ -32,19 +34,37 @@ export function useUnseenDecidedApplicationsCount(): number {
 
   useEffect(() => {
     let cancelled = false;
-    getMyApplications()
-      .then((applications) => {
-        if (cancelled) return;
-        const seen = getSeenIds();
-        const unseen = applications.filter(
-          (a) =>
-            (a.status === "accepted" || a.status === "rejected") && !seen.has(a.id),
-        );
-        setCount(unseen.length);
-      })
-      .catch(() => setCount(0));
+    const refresh = () => {
+      getMyApplications()
+        .then((applications) => {
+          if (cancelled) return;
+          const seen = getSeenIds();
+          const unseen = applications.filter(
+            (a) =>
+              (a.status === "accepted" || a.status === "rejected") && !seen.has(a.id),
+          );
+          setCount(unseen.length);
+        })
+        .catch(() => {
+          if (!cancelled) setCount(0);
+        });
+    };
+    const clearSeen = () => setCount(0);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener(SEEN_EVENT, clearSeen);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener(SEEN_EVENT, clearSeen);
     };
   }, []);
 

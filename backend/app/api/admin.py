@@ -45,6 +45,19 @@ from app.services.applications import MAX_ACTIVE_PROJECTS
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
+def _send_user_message(
+    user: User, *, text: str, buttons: list[list[dict]] | None = None
+) -> dict | None:
+    """Demo users have no MAX dialog; do not turn that into noisy API errors."""
+    if user.is_demo:
+        return None
+    return max_bot_client.send_message(
+        user_id=user.max_user_id,
+        text=text,
+        buttons=buttons,
+    )
+
+
 @router.get("/metrics", response_model=AdminMetricsRead)
 def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
     students = db.scalar(select(func.count(User.id)).where(User.is_demo.is_(False))) or 0
@@ -478,8 +491,8 @@ def update_application_status(
                 }
             ],
         )
-    max_bot_client.send_message(
-        user_id=application.user.max_user_id,
+    _send_user_message(
+        application.user,
         text=text,
         buttons=buttons,
     )
@@ -553,7 +566,7 @@ def review_project_submission(
     text = f"Проект «{submission.project.title}»: {verdict}"
     if payload.note:
         text += f"\n\nКомментарий организатора: {payload.note}"
-    max_bot_client.send_message(user_id=submission.user.max_user_id, text=text)
+    _send_user_message(submission.user, text=text)
     return submission
 
 
@@ -584,8 +597,8 @@ def message_application_student(
                 }
             ]
         ]
-    response = max_bot_client.send_message(
-        user_id=application.user.max_user_id,
+    response = _send_user_message(
+        application.user,
         text=f"Сообщение от организатора проекта «{application.project.title}»:\n\n{payload.text}",
         buttons=buttons,
     )

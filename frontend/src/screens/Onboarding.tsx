@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getMySkills, listSkills, setMySkills, updateProfile, type Skill } from "@/api/users";
+import { getMySkills, listSkills, saveMyAssessment, type Skill } from "@/api/users";
 import { useAuth } from "@/app/AuthProvider";
 import {
   ANSWER_OPTIONS,
@@ -80,13 +80,15 @@ export function OnboardingScreen({ retake = false }: { retake?: boolean }) {
         .filter((item): item is NonNullable<typeof item> => item !== null);
       const ratings = ROLE_QUESTIONS[role].map((question) => finalAnswers[question.skillName] ?? 0);
 
-      await updateProfile({
-        specialty: ROLE_SPECIALTY[role],
-        preferred_role: role,
-        goal,
-        experience_level: answersToExperienceLevel(ratings),
-      });
-      await setMySkills(assessed);
+      await saveMyAssessment(
+        {
+          specialty: ROLE_SPECIALTY[role],
+          preferred_role: role,
+          goal,
+          experience_level: answersToExperienceLevel(ratings),
+        },
+        assessed,
+      );
       await refreshMe();
       hapticSuccess();
       navigate("/", { replace: true });

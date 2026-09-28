@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -60,6 +62,19 @@ _DEMO_PROFILE = {
 }
 
 _DEMO_SKILL_NAMES = ("JavaScript", "HTML/CSS", "React", "Figma", "Git", "Python")
+
+
+def cleanup_stale_demo_users(db: Session, *, keep_max_user_id: int) -> None:
+    """Bound passwordless demo data without touching the seeded showcase user."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.demo_user_ttl_days)
+    db.execute(
+        delete(User).where(
+            User.is_demo.is_(True),
+            User.max_user_id != settings.demo_max_user_id,
+            User.max_user_id != keep_max_user_id,
+            User.created_at < cutoff,
+        )
+    )
 
 
 def ensure_demo_user(

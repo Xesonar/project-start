@@ -46,3 +46,8 @@ export const getMySkills = () => apiRequest<UserSkill[]>("/me/skills");
 
 export const setMySkills = (items: { skill_id: number; level: SkillLevel; rating?: number }[]) =>
   apiRequest<UserSkill[]>("/me/skills", { method: "PUT", body: items });
+
+export const saveMyAssessment = (
+  profile: Partial<Profile>,
+  skills: { skill_id: number; level: SkillLevel; rating?: number }[],
+) => apiRequest<Me>("/me/assessment", { method: "PUT", body: { profile, skills } });

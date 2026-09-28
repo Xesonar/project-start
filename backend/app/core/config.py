@@ -26,10 +26,12 @@ class Settings(BaseSettings):
     webhook_rate_limit_per_minute: int = 120
     webhook_dedup_ttl_seconds: int = 10 * 60
 
-    # Demo mode: lets anyone open the web app without MAX via /auth/demo
-    # (see app/api/auth.py). On by default so judges can open the public link
-    # at a hackathon demo — set DEMO_MODE=false in prod to disable it.
-    demo_mode: bool = True
+    # Demo mode creates passwordless synthetic users. It is off by default
+    # and production requires an extra explicit acknowledgement so a copied
+    # local .env cannot accidentally expose write access on the live service.
+    demo_mode: bool = False
+    allow_production_demo: bool = False
+    demo_user_ttl_days: int = 7
     demo_max_user_id: int = -1
     demo_user_name: str = "Демо-студент"
 
@@ -54,6 +56,10 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET must be a random value of at least 32 characters")
         if self.admin_password == "admin" or len(self.admin_password) < 8:
             problems.append("ADMIN_PASSWORD must be at least 8 characters and not the default")
+        if self.demo_mode and not self.allow_production_demo:
+            problems.append(
+                "DEMO_MODE in production requires ALLOW_PRODUCTION_DEMO=true"
+            )
         if problems:
             raise ValueError("Unsafe production configuration: " + "; ".join(problems))
         return self

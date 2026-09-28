@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -9,6 +10,7 @@ from app.models.project import Project
 from app.seed.run_seed import main as run_seed
 from app.bot.screens import build_apply_result, build_project_detail
 from app.services import max_bot_client
+from app.bot import screens
 from tests.test_max_auth import build_init_data
 
 
@@ -170,6 +172,36 @@ def test_duplicate_callback_is_processed_once(client, monkeypatch):
     assert second.status_code == 200
     assert second.json() == {"ok": True, "duplicate": True}
     assert len(calls) == 1
+
+
+def test_failed_callback_can_be_retried(client, monkeypatch):
+    _mock_bot_api(monkeypatch)
+    original_route = screens.route
+    attempts = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary failure")
+        return original_route(*args, **kwargs)
+
+    monkeypatch.setattr(screens, "route", fail_once)
+    payload = {
+        "update_type": "message_callback",
+        "callback": {
+            "callback_id": "cb-retry",
+            "payload": "a",
+            "user": {"user_id": 807, "first_name": "Студент"},
+        },
+    }
+    with pytest.raises(RuntimeError):
+        client.post("/bot/webhook", json=payload, headers=_headers())
+
+    retried = client.post("/bot/webhook", json=payload, headers=_headers())
+    assert retried.status_code == 200
+    assert retried.json() == {"ok": True}
+    assert attempts == 2
 
 
 def test_message_callback_apply_creates_application(client, monkeypatch):

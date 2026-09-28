@@ -315,6 +315,53 @@
         ]
       }
     },
+    "/me/assessment": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Save My Assessment",
+        "description": "Save profile and measured skills in one transaction.",
+        "operationId": "save_my_assessment_me_assessment_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/projects": {
       "get": {
         "tags": [
@@ -1929,6 +1976,10 @@
             ],
             "title": "Avatar Url"
           },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
           "profile": {
             "anyOf": [
               {
@@ -1945,6 +1996,7 @@
           "id",
           "name",
           "avatar_url",
+          "is_demo",
           "profile"
         ],
         "title": "ApplicantRead"
@@ -2068,6 +2120,27 @@
           "status"
         ],
         "title": "ApplicationStatusUpdate"
+      },
+      "AssessmentUpdate": {
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/ProfileUpdate"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/UserSkillIn"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile",
+          "skills"
+        ],
+        "title": "AssessmentUpdate"
       },
       "ConfirmationRead": {
         "properties": {

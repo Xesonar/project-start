@@ -41,6 +41,11 @@ class ProfileRead(ProfileUpdate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AssessmentUpdate(BaseModel):
+    profile: ProfileUpdate
+    skills: list[UserSkillIn] = Field(max_length=50)
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
