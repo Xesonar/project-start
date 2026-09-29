@@ -65,7 +65,7 @@ def test_update_commands_accepts_max_commands_response(monkeypatch):
         def json(self):
             return {"commands": [{"name": "start", "description": "Старт"}]}
 
-    monkeypatch.setattr(max_bot_client.httpx, "patch", lambda **_kwargs: CommandsResponse())
+    monkeypatch.setattr(max_bot_client.httpx, "patch", lambda *_args, **_kwargs: CommandsResponse())
     assert max_bot_client.update_commands([{"name": "start", "description": "Старт"}])
 
 
