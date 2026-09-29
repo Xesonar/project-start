@@ -116,10 +116,17 @@ def update_commands(commands: list[dict[str, str]]) -> bool:
         )
         response.raise_for_status()
         payload = response.json()
-        if payload.get("success") is not True:
+        # Unlike /subscriptions, PATCH /me/commands returns the resulting
+        # commands array rather than a SimpleQueryResult on the live API.
+        # Accept both documented response shapes and reject only an explicit
+        # failure or a malformed success response.
+        if payload.get("success") is False:
             logger.error("MAX update_commands returned success=false: %s", payload)
             return False
-        return True
+        if payload.get("success") is True or isinstance(payload.get("commands"), list):
+            return True
+        logger.error("MAX update_commands returned unexpected payload: %s", payload)
+        return False
     except Exception:
         logger.exception("MAX update_commands failed")
         return False

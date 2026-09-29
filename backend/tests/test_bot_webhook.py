@@ -57,6 +57,18 @@ def test_setup_includes_text_events_and_visible_commands():
     assert {item["name"] for item in BOT_COMMANDS} >= {"start", "menu", "projects", "clear"}
 
 
+def test_update_commands_accepts_max_commands_response(monkeypatch):
+    class CommandsResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"commands": [{"name": "start", "description": "Старт"}]}
+
+    monkeypatch.setattr(max_bot_client.httpx, "patch", lambda **_kwargs: CommandsResponse())
+    assert max_bot_client.update_commands([{"name": "start", "description": "Старт"}])
+
+
 def test_webhook_rejects_missing_secret_when_none_configured(client, monkeypatch):
     monkeypatch.setattr(settings, "max_bot_webhook_secret", "")
     resp = client.post(
