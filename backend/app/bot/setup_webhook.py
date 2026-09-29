@@ -9,9 +9,19 @@ are known, e.g. inside the deployed backend container:
 import sys
 
 from app.core.config import settings
-from app.services.max_bot_client import subscribe
+from app.services import max_bot_client
 
-UPDATE_TYPES = ["bot_started", "message_callback"]
+UPDATE_TYPES = ["bot_started", "message_callback", "message_created"]
+BOT_COMMANDS = [
+    {"name": "start", "description": "Открыть главное меню"},
+    {"name": "menu", "description": "Главное меню"},
+    {"name": "projects", "description": "Открытые проекты"},
+    {"name": "applications", "description": "Мои отклики"},
+    {"name": "team", "description": "Моя команда"},
+    {"name": "profile", "description": "Мой профиль"},
+    {"name": "clear", "description": "Очистить контекст диалога"},
+    {"name": "help", "description": "Помощь"},
+]
 
 
 def main() -> None:
@@ -27,11 +37,16 @@ def main() -> None:
         print("MAX_BOT_WEBHOOK_SECRET is not set — aborting.")
         raise SystemExit(1)
 
-    ok = subscribe(webhook_url=webhook_url, secret=settings.max_bot_webhook_secret, update_types=UPDATE_TYPES)
-    if ok:
-        print(f"Subscribed: {webhook_url}")
+    subscribed = max_bot_client.subscribe(
+        webhook_url=webhook_url,
+        secret=settings.max_bot_webhook_secret,
+        update_types=UPDATE_TYPES,
+    )
+    commands_updated = max_bot_client.update_commands(BOT_COMMANDS)
+    if subscribed and commands_updated:
+        print(f"Subscribed and commands updated: {webhook_url}")
     else:
-        print("Subscription failed — check logs above.")
+        print("Subscription or command setup failed — check logs above.")
         raise SystemExit(1)
 
 

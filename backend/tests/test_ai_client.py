@@ -70,3 +70,73 @@ def test_drops_project_ids_not_in_candidates(monkeypatch):
     monkeypatch.setattr(ai_client.httpx, "post", lambda *a, **kw: FakeResponse())
     result = ai_client.explain_recommendations("profile", [{"project_id": 1, "title": "X"}])
     assert result is None
+
+
+def test_consult_bot_parses_structured_intent_and_profile_patch(monkeypatch):
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"reply":"Подберу проекты.","intent":"recommendations",'
+                                '"profile":{"goal":"Первый проект"},'
+                                '"skills":[{"name":"React","rating":3}],'
+                                '"unknown_skills":["Clojure"]}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(ai_client.httpx, "post", lambda *args, **kwargs: FakeResponse())
+    result = ai_client.consult_bot(
+        text="Хочу первый проект, знаю React",
+        history=[],
+        platform_context={"open_projects": []},
+        is_private=True,
+    )
+    assert result is not None
+    assert result.intent == "recommendations"
+    assert result.profile == {"goal": "Первый проект"}
+    assert result.skills == [{"name": "React", "rating": 3}]
+
+
+def test_consult_bot_drops_profile_data_in_group(monkeypatch):
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"reply":"Привет!","intent":"profile",'
+                                '"profile":{"goal":"Скрытая цель"},'
+                                '"skills":[{"name":"React","rating":4}]}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(ai_client.httpx, "post", lambda *args, **kwargs: FakeResponse())
+    result = ai_client.consult_bot(
+        text="Я знаю React",
+        history=[],
+        platform_context={"open_projects": []},
+        is_private=False,
+    )
+    assert result is not None
+    assert result.profile == {}
+    assert result.skills == []

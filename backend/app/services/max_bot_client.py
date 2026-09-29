@@ -25,17 +25,25 @@ def _auth_headers() -> dict:
     return {"Authorization": settings.max_bot_token}
 
 
-def send_message(*, user_id: int, text: str, buttons: list[list[dict]] | None = None) -> dict | None:
-    """Sends a new message to a private bot dialog. Returns the response
-    JSON (which includes the message id under body.mid) or None on failure."""
+def send_message(
+    *,
+    text: str,
+    user_id: int | None = None,
+    chat_id: int | None = None,
+    buttons: list[list[dict]] | None = None,
+) -> dict | None:
+    """Send a message to exactly one private user or MAX group chat."""
+    if (user_id is None) == (chat_id is None):
+        raise ValueError("send_message needs exactly one of user_id or chat_id")
     body: dict = {"text": text}
     if buttons:
         body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
+    recipient = {"user_id": user_id} if user_id is not None else {"chat_id": chat_id}
 
     try:
         response = httpx.post(
             f"{settings.max_bot_api_base_url}/messages",
-            params={"user_id": user_id},
+            params=recipient,
             headers=_auth_headers(),
             json=body,
             timeout=_TIMEOUT_SECONDS,
@@ -43,7 +51,7 @@ def send_message(*, user_id: int, text: str, buttons: list[list[dict]] | None = 
         response.raise_for_status()
         return response.json()
     except Exception:
-        logger.exception("MAX send_message failed (user_id=%s)", user_id)
+        logger.exception("MAX send_message failed (recipient=%s)", recipient)
         return None
 
 
@@ -94,4 +102,24 @@ def subscribe(*, webhook_url: str, secret: str, update_types: list[str]) -> bool
         return True
     except Exception:
         logger.exception("MAX webhook subscription failed")
+        return False
+
+
+def update_commands(commands: list[dict[str, str]]) -> bool:
+    """Publish slash commands in the MAX client, replacing the previous set."""
+    try:
+        response = httpx.patch(
+            f"{settings.max_bot_api_base_url}/me/commands",
+            headers=_auth_headers(),
+            json={"commands": commands},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("success") is not True:
+            logger.error("MAX update_commands returned success=false: %s", payload)
+            return False
+        return True
+    except Exception:
+        logger.exception("MAX update_commands failed")
         return False

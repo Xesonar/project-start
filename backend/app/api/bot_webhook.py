@@ -4,7 +4,7 @@ import hmac
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.bot import screens
+from app.bot import assistant, screens
 from app.bot.payload import decode
 from app.core.config import settings
 from app.core.request_guard import client_ip, request_guard, stable_event_key
@@ -25,7 +25,24 @@ def _extract_user(body: dict) -> dict | None:
     update_type = body.get("update_type")
     if update_type == "message_callback":
         return (body.get("callback") or {}).get("user")
+    if update_type == "message_created":
+        return (body.get("message") or {}).get("sender")
     return body.get("user")
+
+
+def _message_context(body: dict) -> tuple[bool, int | None, str | None]:
+    """Return private/group scope, destination chat id, and text for a message event."""
+    message = body.get("message") or {}
+    recipient = message.get("recipient") or {}
+    chat_type = recipient.get("chat_type")
+    is_private = chat_type in {None, "dialog"}
+    raw_chat_id = recipient.get("chat_id")
+    try:
+        chat_id = int(raw_chat_id) if raw_chat_id is not None else None
+    except (TypeError, ValueError):
+        chat_id = None
+    text = (message.get("body") or {}).get("text")
+    return is_private, chat_id, text if isinstance(text, str) else None
 
 
 @router.post("/bot/webhook")
@@ -94,7 +111,12 @@ def bot_webhook(
             callback_id = callback.get("callback_id")
             raw_payload = callback.get("payload") or ""
             if callback_id:
-                text, buttons = screens.route(db, user, decode(raw_payload))
+                is_private, _chat_id, _text = _message_context(body)
+                if is_private:
+                    text, buttons = screens.route(db, user, decode(raw_payload))
+                else:
+                    text = "Личные действия доступны в диалоге с ботом. Напиши мне напрямую."
+                    buttons = None
                 delivered = max_bot_client.answer_callback(
                     callback_id=callback_id, text=text, buttons=buttons
                 )
@@ -103,6 +125,32 @@ def bot_webhook(
                         status.HTTP_502_BAD_GATEWAY,
                         "MAX API временно недоступен",
                     )
+            return {"ok": True}
+
+        if update_type == "message_created":
+            is_private, chat_id, message_text = _message_context(body)
+            if not message_text or not message_text.strip():
+                response_text = "Пока я понимаю только текстовые сообщения. Напиши вопрос или /help."
+                buttons = [[screens._HOME_BUTTON]] if is_private else None
+            else:
+                response_text, buttons = assistant.handle_text(
+                    db,
+                    user=user,
+                    text=message_text,
+                    is_private=is_private,
+                    chat_id=chat_id,
+                )
+            delivered = max_bot_client.send_message(
+                user_id=user.max_user_id if is_private else None,
+                chat_id=chat_id if not is_private else None,
+                text=response_text,
+                buttons=buttons,
+            )
+            if delivered is None:
+                raise HTTPException(
+                    status.HTTP_502_BAD_GATEWAY,
+                    "MAX API временно недоступен",
+                )
             return {"ok": True}
 
         return {"ok": True}

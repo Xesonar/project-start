@@ -11,6 +11,9 @@ from app.seed.run_seed import main as run_seed
 from app.bot.screens import build_apply_result, build_project_detail
 from app.services import max_bot_client
 from app.bot import screens
+from app.bot import assistant
+from app.services import ai_client, bot_memory
+from app.bot.setup_webhook import BOT_COMMANDS, UPDATE_TYPES
 from tests.test_max_auth import build_init_data
 
 
@@ -47,6 +50,11 @@ def test_webhook_rejects_wrong_secret(client, monkeypatch):
         headers={"X-Max-Bot-Api-Secret": "wrong"},
     )
     assert resp.status_code == 401
+
+
+def test_setup_includes_text_events_and_visible_commands():
+    assert "message_created" in UPDATE_TYPES
+    assert {item["name"] for item in BOT_COMMANDS} >= {"start", "menu", "projects", "clear"}
 
 
 def test_webhook_rejects_missing_secret_when_none_configured(client, monkeypatch):
@@ -97,6 +105,89 @@ def test_bot_started_creates_user_and_sends_home_menu(client, monkeypatch):
     assert calls[0]["url"].endswith("/messages")
     assert calls[0]["params"] == {"user_id": 801}
     assert "Найти проект" in str(calls[0]["json"]["attachments"])
+
+
+def test_message_created_start_opens_home_menu(client, monkeypatch):
+    calls = _mock_bot_api(monkeypatch)
+    resp = client.post(
+        "/bot/webhook",
+        json={
+            "update_type": "message_created",
+            "message": {
+                "sender": {"user_id": 810, "first_name": "Студент"},
+                "recipient": {"chat_type": "dialog", "chat_id": 810},
+                "body": {"mid": "message-start", "text": "/start"},
+            },
+        },
+        headers=_headers(),
+    )
+    assert resp.status_code == 200
+    assert calls[-1]["params"] == {"user_id": 810}
+    assert "Найти проект" in str(calls[-1]["json"]["attachments"])
+
+
+def test_message_created_group_replies_to_chat_without_personal_buttons(client, monkeypatch):
+    calls = _mock_bot_api(monkeypatch)
+    monkeypatch.setattr(
+        ai_client,
+        "consult_bot",
+        lambda **_kwargs: ai_client.BotConsultation(
+            reply="В группе тоже могу подсказать.",
+            intent="chat",
+            profile={},
+            skills=[],
+            unknown_skills=[],
+        ),
+    )
+    resp = client.post(
+        "/bot/webhook",
+        json={
+            "update_type": "message_created",
+            "message": {
+                "sender": {"user_id": 811, "first_name": "Студент"},
+                "recipient": {"chat_type": "chat", "chat_id": 9911},
+                "body": {"mid": "message-group", "text": "Что посоветуешь новичку?"},
+            },
+        },
+        headers=_headers(),
+    )
+    assert resp.status_code == 200
+    assert calls[-1]["params"] == {"chat_id": 9911}
+    assert "attachments" not in calls[-1]["json"]
+
+
+def test_clear_command_removes_only_current_conversation_memory(client, monkeypatch):
+    calls = _mock_bot_api(monkeypatch)
+    monkeypatch.setattr(
+        ai_client,
+        "consult_bot",
+        lambda **_kwargs: ai_client.BotConsultation(
+            reply="Ответ", intent="chat", profile={}, skills=[], unknown_skills=[]
+        ),
+    )
+    message = {
+        "update_type": "message_created",
+        "message": {
+            "sender": {"user_id": 812, "first_name": "Студент"},
+            "recipient": {"chat_type": "dialog", "chat_id": 812},
+            "body": {"mid": "message-memory", "text": "Привет"},
+        },
+    }
+    assert client.post("/bot/webhook", json=message, headers=_headers()).status_code == 200
+    db = SessionLocal()
+    try:
+        assert len(bot_memory.recent_messages(db, "user:812")) == 2
+    finally:
+        db.close()
+
+    message["message"]["body"] = {"mid": "message-clear", "text": "/clear"}
+    assert client.post("/bot/webhook", json=message, headers=_headers()).status_code == 200
+    db = SessionLocal()
+    try:
+        assert bot_memory.recent_messages(db, "user:812") == []
+    finally:
+        db.close()
+    assert calls[-1]["params"] == {"user_id": 812}
 
 
 def test_webhook_and_mini_app_share_max_name(client, monkeypatch):
@@ -316,5 +407,30 @@ def test_bot_allows_reapplying_after_rejection(client):
         assert latest.status == ApplicationStatus.pending
         assert application.status == ApplicationStatus.rejected
         assert application.decision_note == "Нужно уточнить опыт"
+    finally:
+        db.close()
+
+
+def test_ai_profile_patch_merges_explicit_fields_and_known_skills(client):
+    run_seed()
+    user = User(max_user_id=899, name="Студент")
+    db = SessionLocal()
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        consultation = ai_client.BotConsultation(
+            reply="",
+            intent="chat",
+            profile={"preferred_role": "Frontend developer", "goal": "Собрать портфолио"},
+            skills=[{"name": "React", "rating": 3}],
+            unknown_skills=["Clojure"],
+        )
+        changed = assistant._merge_profile(db, user, consultation)
+        db.refresh(user)
+        assert "preferred_role" in changed
+        assert user.profile.goal == "Собрать портфолио"
+        assert any(item.skill.name == "React" and item.rating == 3 for item in user.skills)
+        assert "Clojure" in user.profile.about
     finally:
         db.close()

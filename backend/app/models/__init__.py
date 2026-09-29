@@ -12,3 +12,4 @@ from app.models.team import Team, TeamMember  # noqa: F401
 from app.models.result import ProjectResult, ParticipationConfirmation  # noqa: F401
 from app.models.submission import ProjectSubmission  # noqa: F401
 from app.models.notification import BotNotification  # noqa: F401
+from app.models.bot_conversation import BotConversationMessage  # noqa: F401
