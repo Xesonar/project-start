@@ -21,6 +21,9 @@ export interface Me {
   avatar_url: string | null;
   role: string;
   profile: Profile | null;
+  xp: number;
+  level: number;
+  next_level_xp: number | null;
 }
 
 export interface Skill {

@@ -38,6 +38,30 @@ def test_apply_to_project_and_list_my_applications(client):
     assert apps[0]["project"]["id"] == project["id"]
 
 
+def test_project_exposes_only_aggregate_application_counts(client):
+    first_headers = _login(client, 109)
+    second_headers = _login(client, 110)
+    project, role_id = _first_project_with_role(client, first_headers)
+
+    assert client.post(
+        f"/projects/{project['id']}/applications", headers=first_headers, json={"project_role_id": role_id}
+    ).status_code == 201
+    assert client.post(
+        f"/projects/{project['id']}/applications", headers=second_headers, json={"project_role_id": role_id}
+    ).status_code == 201
+
+    detail = client.get(f"/projects/{project['id']}").json()
+    role = next(item for item in detail["roles"] if item["id"] == role_id)
+    assert detail["applicants_count"] == 2
+    assert role["applicants_count"] == 2
+    assert "user" not in role
+
+    application = client.get("/me/applications", headers=first_headers).json()[0]
+    assert client.delete(f"/me/applications/{application['id']}", headers=first_headers).status_code == 204
+    refreshed = client.get(f"/projects/{project['id']}").json()
+    assert refreshed["applicants_count"] == 1
+
+
 def test_duplicate_application_for_same_role_is_rejected(client):
     headers = _login(client, 112)
     project, role_id = _first_project_with_role(client, headers)

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.bot import screens
+from app.core.config import settings
 from app.models.enums import ExperienceLevel, ProjectStatus, SkillLevel
 from app.models.profile import StudentProfile
 from app.models.project import Project, ProjectSkill
@@ -206,6 +207,11 @@ def _screen_for_intent(
             "Напиши, чего хочешь: найти проект, обновить профиль, посмотреть отклики или команду. Я понимаю и обычные фразы.",
             [[screens._HOME_BUTTON]],
         )
+    if intent == "admin":
+        return (
+            "Открою страницу входа в админку. Для доступа нужен пароль администратора.",
+            [[{"type": "link", "text": "Открыть админку", "url": f"{settings.public_app_url.rstrip('/')}/admin"}]],
+        )
     return None, None
 
 
@@ -225,6 +231,7 @@ _COMMAND_INTENTS = {
     "/applications": "applications",
     "/team": "team",
     "/profile": "profile",
+    "/admin": "admin",
     "/help": "help",
 }
 

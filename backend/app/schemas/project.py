@@ -13,6 +13,7 @@ class ProjectRoleRead(BaseModel):
     title: str
     description: str | None
     slots: int
+    applicants_count: int = 0
 
 
 class ProjectRoleCreate(BaseModel):
@@ -62,6 +63,7 @@ class ProjectListItem(BaseModel):
     deadline: str
     participant_limit: int
     organization: OrganizationRead
+    applicants_count: int = 0
 
 
 class ProjectRead(ProjectListItem):

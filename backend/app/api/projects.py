@@ -1,12 +1,13 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
-from app.models.enums import ProjectDifficulty, ProjectFormat, ProjectStatus
+from app.models.application import Application
+from app.models.enums import ApplicationStatus, ProjectDifficulty, ProjectFormat, ProjectStatus
 from app.models.project import Project, ProjectRole, ProjectSkill
 from app.models.skill import UserSkill
 from app.models.user import User
@@ -40,6 +41,44 @@ def _project_query():
     )
 
 
+def _attach_application_counts(db: Session, projects: list[Project]) -> None:
+    """Attach public, aggregate interest signals without exposing applicants."""
+    project_ids = [project.id for project in projects]
+    if not project_ids:
+        return
+    active_statuses = [
+        ApplicationStatus.pending,
+        ApplicationStatus.accepted,
+        ApplicationStatus.leave_requested,
+    ]
+    project_counts = dict(
+        db.execute(
+            select(Application.project_id, func.count(func.distinct(Application.user_id)))
+            .where(
+                Application.project_id.in_(project_ids),
+                Application.status.in_(active_statuses),
+            )
+            .group_by(Application.project_id)
+        ).all()
+    )
+    role_counts = dict(
+        db.execute(
+            select(Application.project_role_id, func.count(Application.id))
+            .where(
+                Application.project_id.in_(project_ids),
+                Application.status.in_(active_statuses),
+            )
+            .group_by(Application.project_role_id)
+        ).all()
+    )
+    for project in projects:
+        # These transient attributes are deliberately not stored: the counts
+        # remain accurate at read time and never expose a student's identity.
+        project.applicants_count = project_counts.get(project.id, 0)
+        for role in project.roles:
+            role.applicants_count = role_counts.get(role.id, 0)
+
+
 @router.get("/projects", response_model=list[ProjectListItem])
 def list_projects(
     difficulty: ProjectDifficulty | None = None,
@@ -70,7 +109,9 @@ def list_projects(
         query = query.order_by(Project.difficulty, Project.created_at.desc())
     else:
         query = query.order_by(Project.created_at.desc())
-    return list(db.scalars(query))
+    projects = list(db.scalars(query))
+    _attach_application_counts(db, projects)
+    return projects
 
 
 @router.get("/projects/recommended", response_model=list[ProjectRecommendation])
@@ -78,6 +119,7 @@ def list_recommended_projects(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> list[ProjectRecommendation]:
     scored, user_skills = recommend_projects(db, user_id=user.id, profile=user.profile)
+    _attach_application_counts(db, [item.project for item in scored])
     novice_profile = not user_skills or max(item.rating for item in user_skills) <= 1
     reasons = {} if novice_profile else explain_top_recommendations(
         scored, user.profile, user_skills
@@ -121,6 +163,7 @@ def get_project_recommendation(
     )
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
+    _attach_application_counts(db, [project])
 
     user_skills = list(
         db.scalars(select(UserSkill).where(UserSkill.user_id == user.id))
@@ -149,4 +192,5 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> Project:
     )
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
+    _attach_application_counts(db, [project])
     return project

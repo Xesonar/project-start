@@ -28,6 +28,7 @@ export interface ProjectListItem {
   deadline: string;
   participant_limit: number;
   organization: Organization;
+  applicants_count: number;
 }
 
 export interface ProjectRole {
@@ -35,6 +36,7 @@ export interface ProjectRole {
   title: string;
   description: string | null;
   slots: number;
+  applicants_count: number;
 }
 
 export interface ProjectRequiredSkill {

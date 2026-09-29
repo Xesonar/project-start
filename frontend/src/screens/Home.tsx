@@ -38,6 +38,11 @@ export function HomeScreen() {
     ? (me?.profile?.preferred_role as AssessmentRole)
     : "Frontend developer";
   const learningResources = LEARNING_BY_ROLE[profileRole];
+  const currentLevelStart = [0, 100, 250, 500][Math.max((me?.level ?? 1) - 1, 0)] ?? 0;
+  const nextLevelXp = me?.next_level_xp ?? null;
+  const levelProgress = nextLevelXp === null
+    ? 100
+    : Math.min(100, Math.round(((me?.xp ?? 0) - currentLevelStart) / (nextLevelXp - currentLevelStart) * 100));
 
   return (
     <div className="screen">
@@ -52,6 +57,20 @@ export function HomeScreen() {
         <p className="screen-subtitle">
           Проекты, которые подходят тебе больше всего — по навыкам, уровню и роли.
         </p>
+        <section className="mt-4 rounded-xl border border-brand-200 bg-brand-gradient-soft p-3 dark:border-brand-800 dark:bg-slate-900">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">Уровень {me?.level ?? 1}</p>
+            <p className="text-xs font-medium text-brand-700 dark:text-brand-300">{me?.xp ?? 0} XP</p>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-brand-100 dark:bg-slate-700">
+            <div className="h-full rounded-full bg-brand-gradient transition-all" style={{ width: `${levelProgress}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-brand-700 dark:text-slate-300">
+            {nextLevelXp === null
+              ? "Максимальный уровень достигнут"
+              : `До следующего уровня: ${nextLevelXp - (me?.xp ?? 0)} XP. XP начисляется за подтверждённые проекты.`}
+          </p>
+        </section>
       </header>
 
       {error ? (

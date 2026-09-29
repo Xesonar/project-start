@@ -19,6 +19,7 @@ BOT_COMMANDS = [
     {"name": "applications", "description": "Мои отклики"},
     {"name": "team", "description": "Моя команда"},
     {"name": "profile", "description": "Мой профиль"},
+    {"name": "admin", "description": "Открыть админку"},
     {"name": "clear", "description": "Очистить контекст диалога"},
     {"name": "help", "description": "Помощь"},
 ]

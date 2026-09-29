@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # between "trust update.user as-is" and an unauthenticated caller.
     max_bot_webhook_secret: str = ""
     max_bot_api_base_url: str = "https://platform-api2.max.ru"
+    public_app_url: str = "https://project-start.plxa.ru"
 
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"

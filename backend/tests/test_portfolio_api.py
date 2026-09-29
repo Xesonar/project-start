@@ -118,6 +118,16 @@ def test_full_completion_and_portfolio_flow(client, monkeypatch):
     assert portfolio[0]["result"]["title"] == "Рабочий прототип бота"
     assert portfolio[0]["confirmation"]["contribution"] == summary
 
+    progress = client.get("/me", headers=student_headers).json()
+    reward = {"beginner": 30, "intermediate": 60, "advanced": 100}[project["difficulty"]]
+    assert progress["xp"] == reward
+    assert progress["level"] == 1
+    assert progress["next_level_xp"] == 100
+
+    repeated = _finalize(client, admin_headers, project, team["members"][0])
+    assert repeated.status_code == 409
+    assert client.get("/me", headers=student_headers).json()["xp"] == reward
+
 
 def test_atomic_finalize_rejects_invalid_member_without_completing_project(client, monkeypatch):
     student_headers = _student_headers(client, 305)

@@ -126,6 +126,13 @@ export function ProjectDetailScreen() {
           (role) => role.id !== appliedRoleId && !blockedRoleIds.has(role.id),
         )?.id ?? null,
       );
+      setProject((current) => current ? {
+        ...current,
+        applicants_count: current.applicants_count + 1,
+        roles: current.roles.map((role) => role.id === appliedRoleId
+          ? { ...role, applicants_count: role.applicants_count + 1 }
+          : role),
+      } : current);
       hapticSuccess();
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : "Не удалось отправить отклик");
@@ -230,6 +237,11 @@ export function ProjectDetailScreen() {
                 <p className="mt-0.5 text-xs text-slate-500">{role.description}</p>
               )}
               <p className="mt-1 text-xs text-slate-400">мест: {role.slots}</p>
+              {role.applicants_count > 0 && (
+                <p className="mt-1 text-xs font-medium text-brand-600">
+                  {role.applicants_count} {role.applicants_count === 1 ? "заявка" : "заявок"} на роль
+                </p>
+              )}
               {existingApplication && (
                 <p className="mt-1 text-xs font-medium text-brand-600">
                   Отклик уже отправлен

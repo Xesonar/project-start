@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, Enum, String
+from sqlalchemy import BigInteger, DateTime, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -22,6 +22,8 @@ class User(Base):
     portfolio_slug: Mapped[str | None] = mapped_column(
         String(64), unique=True, index=True, default=None
     )
+    # Rewards are granted only when an organizer verifies a completed project.
+    xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -32,3 +34,15 @@ class User(Base):
     skills: Mapped[list["UserSkill"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+
+    @property
+    def level(self) -> int:
+        from app.services.progression import level_for_xp
+
+        return level_for_xp(self.xp)
+
+    @property
+    def next_level_xp(self) -> int | None:
+        from app.services.progression import next_level_xp
+
+        return next_level_xp(self.xp)

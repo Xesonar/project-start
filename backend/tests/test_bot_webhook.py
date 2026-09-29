@@ -54,7 +54,7 @@ def test_webhook_rejects_wrong_secret(client, monkeypatch):
 
 def test_setup_includes_text_events_and_visible_commands():
     assert "message_created" in UPDATE_TYPES
-    assert {item["name"] for item in BOT_COMMANDS} >= {"start", "menu", "projects", "clear"}
+    assert {item["name"] for item in BOT_COMMANDS} >= {"start", "menu", "projects", "admin", "clear"}
 
 
 def test_update_commands_accepts_max_commands_response(monkeypatch):

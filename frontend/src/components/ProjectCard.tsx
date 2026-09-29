@@ -61,6 +61,14 @@ export function ProjectCard({ project }: { project: ProjectListItem & { reason?:
         <span>{project.deadline}</span>
         <Dot />
         <span className="font-medium">{project.participant_limit} мест</span>
+        {project.applicants_count > 0 ? (
+          <>
+            <Dot />
+            <span className="font-medium text-brand-600">
+              {project.applicants_count} {project.applicants_count === 1 ? "заявка" : "заявок"}
+            </span>
+          </>
+        ) : null}
       </div>
 
       {project.reason ? (

@@ -54,3 +54,6 @@ class UserRead(BaseModel):
     avatar_url: str | None
     role: str
     profile: ProfileRead | None
+    xp: int
+    level: int
+    next_level_xp: int | None

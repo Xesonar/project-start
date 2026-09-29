@@ -49,6 +49,7 @@ from app.schemas.submission import AdminSubmissionRead, SubmissionReview
 from app.services import max_bot_client
 from app.services.applications import MAX_ACTIVE_PROJECTS
 from app.services.notification_outbox import queue_failed_notification
+from app.services.progression import xp_reward
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -978,17 +979,26 @@ def finalize_project(
             confirmation.role = roles_by_user[item.user_id]
             confirmation.contribution = submissions_by_user[item.user_id].summary
 
+    # Finalization can succeed only once because the project becomes completed
+    # below. Locking the user rows makes the XP increment safe with respect to
+    # any other finalization transaction involving the same student.
+    completed_users = list(
+        db.scalars(select(User).where(User.id.in_(team_user_ids)).with_for_update())
+    )
+    earned_xp = xp_reward(project.difficulty)
+    for completed_user in completed_users:
+        completed_user.xp += earned_xp
+
     project.status = ProjectStatus.completed
     team.status = "completed"
     db.commit()
 
-    completed_users = list(db.scalars(select(User).where(User.id.in_(team_user_ids))))
     for completed_user in completed_users:
         _send_user_message(
             completed_user,
             text=(
                 f"Проект «{project.title}» завершён. Подтверждённый результат "
-                "добавлен в твоё портфолио."
+                f"добавлен в твоё портфолио. Получено: {earned_xp} XP."
             ),
             buttons=[[{"type": "callback", "text": "Моя команда", "payload": encode("t")}]],
         )

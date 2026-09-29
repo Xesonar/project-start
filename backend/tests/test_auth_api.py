@@ -14,6 +14,9 @@ def test_full_auth_and_profile_flow(client):
     body = resp.json()
     assert body["name"] == "Ира С."
     assert body["profile"] is None
+    assert body["xp"] == 0
+    assert body["level"] == 1
+    assert body["next_level_xp"] == 100
 
     resp = client.patch(
         "/me/profile",
