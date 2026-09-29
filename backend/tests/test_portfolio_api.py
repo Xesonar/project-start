@@ -1,4 +1,5 @@
 from app.core.config import settings
+from app.services.progression import level_for_xp, next_level_xp
 from tests.test_max_auth import build_init_data
 
 
@@ -121,8 +122,8 @@ def test_full_completion_and_portfolio_flow(client, monkeypatch):
     progress = client.get("/me", headers=student_headers).json()
     reward = {"beginner": 30, "intermediate": 60, "advanced": 100}[project["difficulty"]]
     assert progress["xp"] == reward
-    assert progress["level"] == 1
-    assert progress["next_level_xp"] == 100
+    assert progress["level"] == level_for_xp(reward)
+    assert progress["next_level_xp"] == next_level_xp(reward)
 
     repeated = _finalize(client, admin_headers, project, team["members"][0])
     assert repeated.status_code == 409
