@@ -1,0 +1,74 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# Deploys are serialized so an older build cannot finish after a newer one.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Never deploy failed CI, pull-request validation, or a non-main branch.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://project-start.plxa.ru
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Configure the deploy connection
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy the tested commit
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_SHA='$DEPLOY_SHA' bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          if ! [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Refusing an invalid deployment revision.' >&2
+            exit 2
+          fi
+
+          cd "$DEPLOY_PATH"
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git checkout --detach --force "$DEPLOY_SHA"
+
+          sudo docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18085/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo 'Backend health check did not succeed after deployment.' >&2
+          sudo docker compose -f docker-compose.prod.yml ps
+          exit 1
+          REMOTE
