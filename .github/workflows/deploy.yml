@@ -59,7 +59,12 @@ jobs:
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           git checkout --detach --force "$DEPLOY_SHA"
 
-          sudo docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          # The VPS uses Docker Compose without buildx.  Building the services
+          # serially avoids its parallel-build deadlock, then the switch to the
+          # freshly built images is an independent, short operation.
+          sudo docker compose -f docker-compose.prod.yml build backend
+          sudo docker compose -f docker-compose.prod.yml build frontend
+          sudo docker compose -f docker-compose.prod.yml up -d --no-build --remove-orphans
 
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18085/health >/dev/null; then
