@@ -116,6 +116,24 @@ def test_recommendations_favor_matching_skills_and_role(client):
     assert top["score"] > 0.5
 
 
+def test_project_detail_recommendation_uses_the_same_score_as_ranking(client):
+    from app.seed.run_seed import main as run_seed
+
+    run_seed()
+    headers = _login(client, 558)
+    ranked = client.get("/projects/recommended", headers=headers)
+    assert ranked.status_code == 200
+    top = ranked.json()[0]
+
+    detail = client.get(
+        f"/projects/{top['id']}/recommendation",
+        headers=headers,
+    )
+    assert detail.status_code == 200
+    assert detail.json()["score"] == top["score"]
+    assert detail.json()["breakdown"] == top["breakdown"]
+
+
 def test_beginner_profile_never_receives_advanced_project(client):
     from sqlalchemy import select
 

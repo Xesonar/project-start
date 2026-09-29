@@ -461,6 +461,54 @@
         ]
       }
     },
+    "/projects/{project_id}/recommendation": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project Recommendation",
+        "description": "Return the same score used by the ranking for one project.\n\nThis endpoint deliberately does not apply the top-10 or open-project\nfilters. A project opened from search, an old application or a MAX deep\nlink must show the exact same formula as its catalogue card.",
+        "operationId": "get_project_recommendation_projects__project_id__recommendation_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecommendation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}": {
       "get": {
         "tags": [
@@ -1931,6 +1979,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
           "project_role": {
             "$ref": "#/components/schemas/ProjectRoleRead"
           },
@@ -1945,6 +2005,7 @@
           "message",
           "decision_note",
           "created_at",
+          "decided_at",
           "project_role",
           "user"
         ],
@@ -2026,6 +2087,22 @@
           "acceptance_rate": {
             "type": "number",
             "title": "Acceptance Rate"
+          },
+          "pending_applications": {
+            "type": "integer",
+            "title": "Pending Applications"
+          },
+          "overdue_applications": {
+            "type": "integer",
+            "title": "Overdue Applications"
+          },
+          "pending_submissions": {
+            "type": "integer",
+            "title": "Pending Submissions"
+          },
+          "leave_requests": {
+            "type": "integer",
+            "title": "Leave Requests"
           }
         },
         "type": "object",
@@ -2037,7 +2114,11 @@
           "completed_projects",
           "confirmed_participations",
           "assessment_rate",
-          "acceptance_rate"
+          "acceptance_rate",
+          "pending_applications",
+          "overdue_applications",
+          "pending_submissions",
+          "leave_requests"
         ],
         "title": "AdminMetricsRead"
       },
@@ -2222,6 +2303,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
           "project": {
             "$ref": "#/components/schemas/ProjectListItem"
           },
@@ -2236,6 +2329,7 @@
           "message",
           "decision_note",
           "created_at",
+          "decided_at",
           "project",
           "project_role"
         ],
@@ -3407,6 +3501,7 @@
         "enum": [
           "draft",
           "open",
+          "recruitment_closed",
           "in_progress",
           "completed"
         ],
@@ -3418,6 +3513,7 @@
             "type": "string",
             "enum": [
               "open",
+              "recruitment_closed",
               "in_progress"
             ],
             "title": "Status"

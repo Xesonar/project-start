@@ -25,6 +25,7 @@ class AdminApplicationRead(BaseModel):
     message: str | None
     decision_note: str | None
     created_at: datetime
+    decided_at: datetime | None
     project_role: ProjectRoleRead
     user: ApplicantRead
 
@@ -59,7 +60,7 @@ class ProjectCommunicationUpdate(BaseModel):
 
 
 class ProjectStatusUpdate(BaseModel):
-    status: Literal["open", "in_progress"]
+    status: Literal["open", "recruitment_closed", "in_progress"]
 
 
 class AdminMetricsRead(BaseModel):
@@ -71,3 +72,7 @@ class AdminMetricsRead(BaseModel):
     confirmed_participations: int
     assessment_rate: float
     acceptance_rate: float
+    pending_applications: int
+    overdue_applications: int
+    pending_submissions: int
+    leave_requests: int

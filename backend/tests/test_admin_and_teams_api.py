@@ -151,10 +151,10 @@ def test_admin_can_close_and_reopen_recruitment(client, monkeypatch):
     closed = client.patch(
         f"/admin/projects/{project['id']}/status",
         headers=headers,
-        json={"status": "in_progress"},
+        json={"status": "recruitment_closed"},
     )
     assert closed.status_code == 200
-    assert closed.json()["status"] == "in_progress"
+    assert closed.json()["status"] == "recruitment_closed"
     assert all(item["id"] != project["id"] for item in client.get("/projects").json())
 
     reopened = client.patch(
@@ -166,7 +166,7 @@ def test_admin_can_close_and_reopen_recruitment(client, monkeypatch):
     assert reopened.json()["status"] == "open"
 
 
-def test_closing_recruitment_rejects_pending_applications(client, monkeypatch):
+def test_closed_recruitment_keeps_existing_applications_reviewable(client, monkeypatch):
     student_headers = _student_headers(client, 205)
     admin_headers = _admin_headers(client, monkeypatch)
     project, application = _seed_and_apply(client, student_headers)
@@ -175,7 +175,7 @@ def test_closing_recruitment_rejects_pending_applications(client, monkeypatch):
     response = client.patch(
         f"/admin/projects/{project['id']}/status",
         headers=admin_headers,
-        json={"status": "in_progress"},
+        json={"status": "recruitment_closed"},
     )
 
     assert response.status_code == 200
@@ -184,8 +184,78 @@ def test_closing_recruitment_rejects_pending_applications(client, monkeypatch):
         for item in client.get("/me/applications", headers=student_headers).json()
         if item["id"] == application["id"]
     )
-    assert updated["status"] == "rejected"
-    assert updated["decision_note"] == "Набор закрыт организатором."
+    assert updated["status"] == "pending"
+    assert updated["decision_note"] is None
+    assert updated["decided_at"] is None
+
+    accepted = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    )
+    assert accepted.status_code == 200
+
+
+def test_project_work_starts_only_after_explicit_admin_action(client, monkeypatch):
+    student_headers = _student_headers(client, 206)
+    admin_headers = _admin_headers(client, monkeypatch)
+    project, application = _seed_and_apply(client, student_headers)
+    monkeypatch.setattr("app.api.admin.max_bot_client.send_message", lambda **_kwargs: {})
+
+    accepted = client.patch(
+        f"/admin/applications/{application['id']}",
+        headers=admin_headers,
+        json={"status": "accepted"},
+    )
+    assert accepted.status_code == 200
+    assert client.get(f"/projects/{project['id']}").json()["status"] == "open"
+
+    too_early = client.put(
+        f"/me/projects/{project['id']}/submission",
+        headers=student_headers,
+        json={"summary": "Работа ещё не должна приниматься", "result_url": None},
+    )
+    assert too_early.status_code == 409
+
+    closed = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "recruitment_closed"},
+    )
+    assert closed.status_code == 200
+    started = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "in_progress"},
+    )
+    assert started.status_code == 200
+
+    submitted = client.put(
+        f"/me/projects/{project['id']}/submission",
+        headers=student_headers,
+        json={"summary": "Теперь результат можно проверить", "result_url": None},
+    )
+    assert submitted.status_code == 200
+
+
+def test_project_cannot_start_without_team_members(client, monkeypatch):
+    from app.seed.run_seed import main as run_seed
+
+    run_seed()
+    admin_headers = _admin_headers(client, monkeypatch)
+    project = client.get("/projects").json()[0]
+    assert client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "recruitment_closed"},
+    ).status_code == 200
+
+    response = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "in_progress"},
+    )
+    assert response.status_code == 409
 
 
 def test_admin_rejects_project_when_role_slots_cannot_fill_team(client, monkeypatch):
@@ -440,7 +510,7 @@ def test_full_team_closes_project_and_rejection_reopens_it(client, monkeypatch):
         json={"status": "accepted"},
     )
     assert accepted.status_code == 200
-    assert client.get(f"/projects/{project['id']}").json()["status"] == "in_progress"
+    assert client.get(f"/projects/{project['id']}").json()["status"] == "recruitment_closed"
 
     new_student_headers = _student_headers(client, 212)
     blocked = client.post(
@@ -461,7 +531,7 @@ def test_full_team_closes_project_and_rejection_reopens_it(client, monkeypatch):
         json={"status": "rejected", "note": "Освобождаем место"},
     )
     assert rejected.status_code == 200
-    assert client.get(f"/projects/{project['id']}").json()["status"] == "open"
+    assert client.get(f"/projects/{project['id']}").json()["status"] == "recruitment_closed"
 
 
 def test_filling_team_rejects_remaining_pending_applications(client, monkeypatch):

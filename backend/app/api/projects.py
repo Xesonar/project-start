@@ -8,9 +8,15 @@ from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.enums import ProjectDifficulty, ProjectFormat, ProjectStatus
 from app.models.project import Project, ProjectRole, ProjectSkill
+from app.models.skill import UserSkill
 from app.models.user import User
 from app.schemas.project import ProjectListItem, ProjectRead, ProjectRecommendation
-from app.services.recommendation import explain_top_recommendations, recommend_projects
+from app.services.recommendation import (
+    ScoredProject,
+    explain_top_recommendations,
+    recommend_projects,
+    score_project,
+)
 
 router = APIRouter(tags=["projects"])
 
@@ -90,6 +96,45 @@ def list_recommended_projects(
         )
         for item in scored
     ]
+
+
+@router.get(
+    "/projects/{project_id}/recommendation",
+    response_model=ProjectRecommendation,
+)
+def get_project_recommendation(
+    project_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectRecommendation:
+    """Return the same score used by the ranking for one project.
+
+    This endpoint deliberately does not apply the top-10 or open-project
+    filters. A project opened from search, an old application or a MAX deep
+    link must show the exact same formula as its catalogue card.
+    """
+    project = db.scalar(
+        _project_query().where(
+            Project.id == project_id,
+            Project.status != ProjectStatus.draft,
+        )
+    )
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
+
+    user_skills = list(
+        db.scalars(select(UserSkill).where(UserSkill.user_id == user.id))
+    )
+    rating_by_skill_id = {item.skill_id: item.rating for item in user_skills}
+    score, breakdown = score_project(project, rating_by_skill_id, user.profile)
+    scored = ScoredProject(project=project, score=score, breakdown=breakdown)
+    return ProjectRecommendation.model_validate(project, from_attributes=True).model_copy(
+        update={
+            "score": round(score, 4),
+            "breakdown": {key: round(value, 4) for key, value in breakdown.items()},
+            "reason": _fallback_reason(scored),
+        }
+    )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)

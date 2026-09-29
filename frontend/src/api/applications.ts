@@ -14,6 +14,7 @@ export interface Application {
   message: string | null;
   decision_note: string | null;
   created_at: string;
+  decided_at: string | null;
   project: ProjectListItem;
   project_role: ProjectRole;
 }

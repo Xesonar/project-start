@@ -30,6 +30,22 @@ def _apply_and_accept(client, student_headers, admin_headers):
     client.patch(
         f"/admin/applications/{application['id']}", headers=admin_headers, json={"status": "accepted"}
     )
+    # Acceptance only forms a team. Work and submissions begin after the
+    # organizer explicitly closes recruitment and starts the project.
+    current = client.get(f"/projects/{project['id']}").json()
+    if current["status"] == "open":
+        closed = client.patch(
+            f"/admin/projects/{project['id']}/status",
+            headers=admin_headers,
+            json={"status": "recruitment_closed"},
+        )
+        assert closed.status_code == 200
+    started = client.patch(
+        f"/admin/projects/{project['id']}/status",
+        headers=admin_headers,
+        json={"status": "in_progress"},
+    )
+    assert started.status_code == 200
     return detail, application
 
 

@@ -311,7 +311,12 @@ def build_my_team(db, user: User) -> tuple[str, Buttons]:
     lines = ["Мои команды:"]
     buttons: Buttons = []
     for team in ordered_teams:
-        status_label = "в работе" if team.status == "active" else "завершён"
+        if team.status == "completed":
+            status_label = "завершён"
+        elif team.project.status == ProjectStatus.in_progress:
+            status_label = "в работе"
+        else:
+            status_label = "команда формируется"
         lines.extend(
             ["", f"{team.project.title} · {status_label}", team.project.organization.name, "Команда:"]
         )

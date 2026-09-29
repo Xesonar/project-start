@@ -11,6 +11,7 @@ import {
   resetApplicationDecision,
   reviewProjectSubmission,
   updateProjectCommunication,
+  updateAdminProjectStatus,
   updateApplicationStatus,
   type AdminApplication,
 } from "@/api/admin";
@@ -40,6 +41,22 @@ const SUBMISSION_STATUS_LABELS: Record<AdminProjectSubmission["status"], string>
   rejected: "Не подтверждена",
 };
 
+const PROJECT_STATUS_LABELS: Record<ProjectListItem["status"], string> = {
+  draft: "Черновик",
+  open: "Идёт набор",
+  recruitment_closed: "Набор закрыт",
+  in_progress: "Проект в работе",
+  completed: "Завершён",
+};
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function AdminProjectApplications() {
   const { id } = useParams<{ id: string }>();
   const [applications, setApplications] = useState<AdminApplication[] | null>(null);
@@ -61,6 +78,7 @@ export function AdminProjectApplications() {
   const [submissions, setSubmissions] = useState<AdminProjectSubmission[]>([]);
   const [reviewDrafts, setReviewDrafts] = useState<Record<number, string>>({});
   const [reviewingSubmissionId, setReviewingSubmissionId] = useState<number | null>(null);
+  const [changingProjectStatus, setChangingProjectStatus] = useState(false);
 
   const load = () => {
     if (!id) return;
@@ -219,6 +237,28 @@ export function AdminProjectApplications() {
     }
   };
 
+  const handleProjectStatus = async (
+    nextStatus: "open" | "recruitment_closed" | "in_progress",
+  ) => {
+    if (!project) return;
+    const prompt = {
+      open: "Открыть набор снова?",
+      recruitment_closed: "Закрыть набор? Новые отклики прекратятся, а ожидающие останутся в очереди.",
+      in_progress: "Начать работу над проектом с текущей командой?",
+    }[nextStatus];
+    if (!window.confirm(prompt)) return;
+    setChangingProjectStatus(true);
+    setError(null);
+    try {
+      setProject(await updateAdminProjectStatus(project.id, nextStatus));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить статус проекта");
+    } finally {
+      setChangingProjectStatus(false);
+    }
+  };
+
   return (
     <div className="mx-auto flex min-h-full max-w-2xl flex-col gap-4 px-4 py-6">
       <Link to="/admin/projects" className="text-sm text-brand-600">
@@ -231,11 +271,74 @@ export function AdminProjectApplications() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
+      {project && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Этап проекта</p>
+              <p className="mt-0.5 font-semibold">{PROJECT_STATUS_LABELS[project.status]}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {project.status === "open" && (
+                <button
+                  type="button"
+                  disabled={changingProjectStatus}
+                  onClick={() => void handleProjectStatus("recruitment_closed")}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium"
+                >
+                  Закрыть набор
+                </button>
+              )}
+              {project.status === "recruitment_closed" && (
+                <>
+                  <button
+                    type="button"
+                    disabled={changingProjectStatus}
+                    onClick={() => void handleProjectStatus("open")}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium"
+                  >
+                    Открыть набор
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      changingProjectStatus ||
+                      acceptedApplications.length === 0 ||
+                      (applications ?? []).some((item) => item.status === "pending")
+                    }
+                    onClick={() => void handleProjectStatus("in_progress")}
+                    className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Начать проект
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {project.status === "recruitment_closed" && acceptedApplications.length === 0 && (
+            <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
+              Чтобы начать проект, сначала примите хотя бы одного участника.
+            </p>
+          )}
+          {project.status === "recruitment_closed" &&
+            (applications ?? []).some((item) => item.status === "pending") && (
+              <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
+                Перед запуском обработайте все отклики со статусом «На рассмотрении».
+              </p>
+            )}
+        </section>
+      )}
+
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold">Чат команды в MAX</h2>
         <p className="mt-1 text-xs text-slate-500">
           Принятые студенты получат эту ссылку через бота и увидят её на экране команды.
         </p>
+        {!teamChatUrl.trim() && acceptedApplications.length > 0 && (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
+            У команды пока нет ссылки на чат — участники не смогут быстро связаться друг с другом.
+          </p>
+        )}
         <div className="mt-3 flex gap-2">
           <input
             type="url"
@@ -280,6 +383,10 @@ export function AdminProjectApplications() {
                     {app.user.profile?.experience_level ?? "уровень не указан"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">Роль: {app.project_role.title}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Отклик: {formatDate(app.created_at)}
+                    {app.decided_at ? ` · решение: ${formatDate(app.decided_at)}` : ""}
+                  </p>
                   {app.message && <p className="mt-1 text-sm text-slate-600">«{app.message}»</p>}
                   {app.decision_note && (
                     <p className="mt-1 text-xs text-slate-500">Комментарий: {app.decision_note}</p>
@@ -353,7 +460,8 @@ export function AdminProjectApplications() {
                 </div>
               )}
 
-              {(app.status === "accepted" || app.status === "rejected") && project?.status !== "completed" && (
+              {(app.status === "accepted" || app.status === "rejected") &&
+                (project?.status === "open" || project?.status === "recruitment_closed") && (
                 <button
                   type="button"
                   disabled={pendingActionId === app.id}
@@ -516,6 +624,11 @@ export function AdminProjectApplications() {
                   Завершение станет доступно, когда каждый участник отправит результат и организатор его подтвердит.
                 </p>
               )}
+              {project?.status !== "in_progress" && project?.status !== "completed" && (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+                  Перед завершением закройте набор и нажмите «Начать проект».
+                </p>
+              )}
               <label className="text-xs font-medium text-slate-600">
                 Название результата
                 <input
@@ -569,7 +682,7 @@ export function AdminProjectApplications() {
                   finishing ||
                   hasPendingLeaveRequest ||
                   !allAcceptedWorkApproved ||
-                  project?.status === "completed" ||
+                  project?.status !== "in_progress" ||
                   !resultTitle.trim() ||
                   !resultDescription.trim()
                 }

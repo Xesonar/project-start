@@ -7,7 +7,8 @@ import type { ProjectListItem } from "@/api/projects";
 
 const STATUS_LABELS: Record<ProjectListItem["status"], string> = {
   draft: "Черновик",
-  open: "Открыт",
+  open: "Идёт набор",
+  recruitment_closed: "Набор закрыт",
   in_progress: "В работе",
   completed: "Завершён",
 };
@@ -32,10 +33,16 @@ export function AdminProjectList() {
     }
   };
 
-  const changeRecruitment = async (project: ProjectListItem) => {
-    const nextStatus = project.status === "open" ? "in_progress" : "open";
-    const action = nextStatus === "open" ? "открыть набор" : "закрыть набор";
-    if (!window.confirm(`Точно ${action} в проект?`)) return;
+  const changeStatus = async (
+    project: ProjectListItem,
+    nextStatus: "open" | "recruitment_closed",
+  ) => {
+    const prompts = {
+      open: "Открыть набор снова? Студенты смогут отправлять новые отклики.",
+      recruitment_closed:
+        "Закрыть набор? Новые отклики прекратятся, а ожидающие останутся на рассмотрении.",
+    };
+    if (!window.confirm(prompts[nextStatus])) return;
     setPublishingId(project.id);
     setError(null);
     try {
@@ -84,13 +91,13 @@ export function AdminProjectList() {
           {projects.map((project) => (
             <div
               key={project.id}
-              className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-300"
+              className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-300 sm:flex-row sm:items-center sm:justify-between"
             >
               <Link to={`/admin/projects/${project.id}`} className="min-w-0 flex-1">
                 <p className="text-xs text-slate-400">{project.organization.name}</p>
                 <p className="truncate text-sm font-medium">{project.title}</p>
               </Link>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <DifficultyBadge difficulty={project.difficulty} />
                 <span className="text-xs text-slate-500">{STATUS_LABELS[project.status]}</span>
                 {project.status === "draft" && (
@@ -103,14 +110,24 @@ export function AdminProjectList() {
                     {publishingId === project.id ? "Публикуем…" : "Опубликовать"}
                   </button>
                 )}
-                {(project.status === "open" || project.status === "in_progress") && (
+                {project.status === "open" && (
                   <button
                     type="button"
                     disabled={publishingId === project.id}
-                    onClick={() => void changeRecruitment(project)}
+                    onClick={() => void changeStatus(project, "recruitment_closed")}
                     className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-50"
                   >
-                    {project.status === "open" ? "Закрыть набор" : "Открыть набор"}
+                    Закрыть набор
+                  </button>
+                )}
+                {project.status === "recruitment_closed" && (
+                  <button
+                    type="button"
+                    disabled={publishingId === project.id}
+                    onClick={() => void changeStatus(project, "open")}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-50"
+                  >
+                    Открыть набор
                   </button>
                 )}
               </div>

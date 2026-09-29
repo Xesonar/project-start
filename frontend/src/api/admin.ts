@@ -26,6 +26,7 @@ export interface AdminApplication {
   message: string | null;
   decision_note: string | null;
   created_at: string;
+  decided_at: string | null;
   project_role: ProjectRole;
   user: AdminApplicant;
 }
@@ -64,6 +65,10 @@ export interface AdminMetrics {
   confirmed_participations: number;
   assessment_rate: number;
   acceptance_rate: number;
+  pending_applications: number;
+  overdue_applications: number;
+  pending_submissions: number;
+  leave_requests: number;
 }
 
 export const adminLogin = (password: string) =>
@@ -108,7 +113,7 @@ export const publishAdminProject = (projectId: number) =>
 
 export const updateAdminProjectStatus = (
   projectId: number,
-  status: Extract<ProjectStatus, "open" | "in_progress">,
+  status: Extract<ProjectStatus, "open" | "recruitment_closed" | "in_progress">,
 ) =>
   apiRequest<ProjectListItem>(`/admin/projects/${projectId}/status`, {
     method: "PATCH",

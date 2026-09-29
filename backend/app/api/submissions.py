@@ -24,6 +24,11 @@ def _require_active_membership(db: Session, *, project_id: int, user_id: int) ->
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status == ProjectStatus.completed:
         raise HTTPException(status.HTTP_409_CONFLICT, "В завершённом проекте сдачи заблокированы")
+    if project.status != ProjectStatus.in_progress:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Сдача откроется после того, как организатор запустит проект",
+        )
     membership = db.scalar(
         select(TeamMember)
         .join(Team, Team.id == TeamMember.team_id)

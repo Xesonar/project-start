@@ -15,14 +15,17 @@ The ring animates once on mount (stroke-dashoffset transition) so the number
 export function MatchRing({
   match,
   overallScore,
+  breakdown,
   loading = false,
 }: {
   match: MatchResult | null;
   overallScore?: number | null;
+  breakdown?: { skills: number; role: number; specialty: number; difficulty: number };
   loading?: boolean;
 }) {
   // Start fully empty, then ease to the real value after first paint.
   const [offset, setOffset] = useState(CIRCUMFERENCE);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     if (!match) return;
@@ -50,7 +53,8 @@ export function MatchRing({
   const percent = Math.round(score * 100);
 
   return (
-    <div className="card animate-scale-in flex items-center gap-4 overflow-hidden p-4">
+    <div className="card animate-scale-in overflow-hidden p-4">
+      <div className="flex items-center gap-4">
       <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
         <svg
           width={SIZE}
@@ -115,6 +119,44 @@ export function MatchRing({
             ✓ Полное покрытие навыков
           </p>
         )}
+        {breakdown ? (
+          <button
+            type="button"
+            onClick={() => setShowDetails((current) => !current)}
+            className="mt-2 text-xs font-medium text-brand-600 underline"
+            aria-expanded={showDetails}
+          >
+            {showDetails ? "Скрыть расчёт" : "Почему такой процент?"}
+          </button>
+        ) : null}
+      </div>
+      </div>
+      {breakdown && showDetails ? (
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+          <ScorePart label="Навыки" value={breakdown.skills} maximum={0.4} />
+          <ScorePart label="Роль" value={breakdown.role} maximum={0.25} />
+          <ScorePart label="Направление" value={breakdown.specialty} maximum={0.2} />
+          <ScorePart label="Уровень" value={breakdown.difficulty} maximum={0.15} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ScorePart({ label, value, maximum }: { label: string; value: number; maximum: number }) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-slate-500">{label}</span>
+        <strong className="tabular-nums text-slate-900">
+          {Math.round(value * 100)}/{Math.round(maximum * 100)}
+        </strong>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+        <div
+          className="h-full rounded-full bg-brand-gradient"
+          style={{ width: `${Math.min(100, (value / maximum) * 100)}%` }}
+        />
       </div>
     </div>
   );

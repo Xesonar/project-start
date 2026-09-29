@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { createApplication, getMyApplications, type Application } from "@/api/applications";
-import { getProject, listRecommendedProjects, type ProjectDetail } from "@/api/projects";
+import {
+  getProject,
+  getProjectRecommendation,
+  type ProjectDetail,
+  type ProjectRecommendation,
+} from "@/api/projects";
 import { getMySkills, type UserSkill } from "@/api/users";
 import { DifficultyBadge } from "@/components/DifficultyBadge";
 import { MatchRing } from "@/components/MatchRing";
@@ -37,7 +42,7 @@ export function ProjectDetailScreen() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [skills, setSkills] = useState<UserSkill[] | null>(null);
   const [applications, setApplications] = useState<Application[] | null>(null);
-  const [recommendationScore, setRecommendationScore] = useState<number | null | undefined>();
+  const [recommendation, setRecommendation] = useState<ProjectRecommendation | null | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [applyState, setApplyState] = useState<"idle" | "submitting" | "done" | "error">("idle");
@@ -48,13 +53,13 @@ export function ProjectDetailScreen() {
     if (!id) return;
     setError(null);
     setProject(null);
-    setRecommendationScore(undefined);
+    setRecommendation(undefined);
     Promise.all([
       getProject(Number(id)),
       getMyApplications().catch(() => []),
-      listRecommendedProjects().catch(() => []),
+      getProjectRecommendation(Number(id)).catch(() => null),
     ])
-      .then(([data, currentApplications, recommendations]) => {
+      .then(([data, currentApplications, currentRecommendation]) => {
         const appliedRoleIds = new Set(
           currentApplications
             .filter(
@@ -65,9 +70,7 @@ export function ProjectDetailScreen() {
         );
         setProject(data);
         setApplications(currentApplications);
-        setRecommendationScore(
-          recommendations.find((item) => item.id === data.id)?.score ?? null,
-        );
+        setRecommendation(currentRecommendation);
         setSelectedRoleId(
           data.status === "open"
             ? (data.roles.find((role) => !appliedRoleIds.has(role.id))?.id ?? null)
@@ -176,8 +179,9 @@ export function ProjectDetailScreen() {
           a wall of text. Lives above the description on purpose. */}
       <MatchRing
         match={match}
-        overallScore={recommendationScore}
-        loading={skills === null || recommendationScore === undefined}
+        overallScore={recommendation?.score ?? null}
+        breakdown={recommendation?.breakdown}
+        loading={skills === null || recommendation === undefined}
       />
 
       <section>
@@ -278,7 +282,7 @@ export function ProjectDetailScreen() {
             type="button"
             onClick={handleApply}
             disabled={selectedRoleId === null || applyState === "submitting"}
-            className="btn-primary"
+            className="btn-primary sticky bottom-4 z-20 w-full"
           >
             {applyState === "submitting" ? "Отправляем..." : "Откликнуться"}
           </button>

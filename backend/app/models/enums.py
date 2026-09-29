@@ -27,6 +27,7 @@ class ProjectDifficulty(str, enum.Enum):
 class ProjectStatus(str, enum.Enum):
     draft = "draft"
     open = "open"
+    recruitment_closed = "recruitment_closed"
     in_progress = "in_progress"
     completed = "completed"
 

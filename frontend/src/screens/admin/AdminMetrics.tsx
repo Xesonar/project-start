@@ -36,6 +36,25 @@ export function AdminMetricsScreen() {
       {!metrics && !error ? <div className="skeleton h-52" /> : null}
       {metrics ? (
         <>
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/50">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-amber-900 dark:text-amber-200">Требует внимания</h2>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  Сначала разберите просроченные отклики и работы на проверке.
+                </p>
+              </div>
+              <Link to="/admin/projects" className="shrink-0 text-xs font-semibold text-brand-700">
+                Открыть проекты →
+              </Link>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <QueueMetric label="Новые отклики" value={metrics.pending_applications} />
+              <QueueMetric label="Старше 48 часов" value={metrics.overdue_applications} urgent />
+              <QueueMetric label="Работы на проверке" value={metrics.pending_submissions} />
+              <QueueMetric label="Запросы на выход" value={metrics.leave_requests} urgent />
+            </div>
+          </section>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {CARDS.map(({ key, label }) => (
               <div key={key} className="card">
@@ -51,6 +70,17 @@ export function AdminMetricsScreen() {
           </section>
         </>
       ) : null}
+    </div>
+  );
+}
+
+function QueueMetric({ label, value, urgent = false }: { label: string; value: number; urgent?: boolean }) {
+  return (
+    <div className="rounded-lg bg-white/80 p-3 dark:bg-slate-900/80">
+      <p className={`text-xl font-bold ${urgent && value > 0 ? "text-red-600" : "text-slate-900"}`}>
+        {value}
+      </p>
+      <p className="mt-0.5 text-[11px] leading-tight text-slate-500">{label}</p>
     </div>
   );
 }

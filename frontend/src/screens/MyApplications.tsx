@@ -26,6 +26,14 @@ const STATUS_STYLES: Record<ApplicationStatus, string> = {
   leave_requested: "bg-violet-50 text-violet-700",
 };
 
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function MyApplicationsScreen() {
   const [applications, setApplications] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +130,10 @@ export function MyApplicationsScreen() {
                 <p className="text-xs text-slate-400">{app.project.organization.name}</p>
                 <h3 className="mt-1 text-sm font-semibold text-slate-900">{app.project.title}</h3>
                 <p className="mt-1 text-xs text-slate-500">Роль: {app.project_role.title}</p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Отправлен {formatDate(app.created_at)}
+                  {app.decided_at ? ` · решение ${formatDate(app.decided_at)}` : ""}
+                </p>
                 <span
                   className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[app.status]}`}
                 >

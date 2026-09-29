@@ -155,6 +155,11 @@ export function TeamScreen() {
                 Проект завершён, подтверждённый результат сохранён в портфолио.
               </p>
             )}
+            {team.status === "active" && team.project.status !== "in_progress" && (
+              <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
+                Команда формируется. Сдача результата откроется, когда организатор запустит проект.
+              </p>
+            )}
           </div>
 
           <div className="stagger flex flex-col gap-2">
@@ -183,7 +188,7 @@ export function TeamScreen() {
             <Link to="/portfolio" className="btn-primary text-center">
               Открыть портфолио
             </Link>
-          ) : (
+          ) : team.project.status === "in_progress" ? (
             <section className="card">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -241,7 +246,7 @@ export function TeamScreen() {
                 </p>
               )}
             </section>
-          )}
+          ) : null}
         </>
       )}
     </div>

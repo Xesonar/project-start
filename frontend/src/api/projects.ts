@@ -2,7 +2,12 @@ import { apiRequest } from "./client";
 import type { Skill, SkillLevel } from "./users";
 
 export type ProjectDifficulty = "beginner" | "intermediate" | "advanced";
-export type ProjectStatus = "draft" | "open" | "in_progress" | "completed";
+export type ProjectStatus =
+  | "draft"
+  | "open"
+  | "recruitment_closed"
+  | "in_progress"
+  | "completed";
 export type ProjectFormat = "online" | "offline" | "hybrid";
 
 export interface Organization {
@@ -83,3 +88,6 @@ export const getProject = (id: number) =>
 
 export const listRecommendedProjects = () =>
   apiRequest<ProjectRecommendation[]>("/projects/recommended");
+
+export const getProjectRecommendation = (id: number) =>
+  apiRequest<ProjectRecommendation>(`/projects/${id}/recommendation`);

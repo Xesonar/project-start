@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -90,6 +90,27 @@ def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
     confirmations = db.scalar(
         select(func.count(ParticipationConfirmation.id))
     ) or 0
+    pending_applications = db.scalar(
+        select(func.count(Application.id)).where(
+            Application.status == ApplicationStatus.pending
+        )
+    ) or 0
+    overdue_applications = db.scalar(
+        select(func.count(Application.id)).where(
+            Application.status == ApplicationStatus.pending,
+            Application.created_at < datetime.now(timezone.utc) - timedelta(hours=48),
+        )
+    ) or 0
+    pending_submissions = db.scalar(
+        select(func.count(ProjectSubmission.id)).where(
+            ProjectSubmission.status == ProjectSubmissionStatus.submitted
+        )
+    ) or 0
+    leave_requests = db.scalar(
+        select(func.count(Application.id)).where(
+            Application.status == ApplicationStatus.leave_requested
+        )
+    ) or 0
     return AdminMetricsRead(
         students=students,
         assessed_students=assessed,
@@ -99,6 +120,10 @@ def get_metrics(db: Session = Depends(get_db)) -> AdminMetricsRead:
         confirmed_participations=confirmations,
         assessment_rate=round(assessed / students * 100, 1) if students else 0,
         acceptance_rate=round(accepted / applications * 100, 1) if applications else 0,
+        pending_applications=pending_applications,
+        overdue_applications=overdue_applications,
+        pending_submissions=pending_submissions,
+        leave_requests=leave_requests,
     )
 
 
@@ -220,7 +245,7 @@ def update_project_status(
     payload: ProjectStatusUpdate,
     db: Session = Depends(get_db),
 ) -> Project:
-    closed_applications: list[Application] = []
+    started_users: list[User] = []
     project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
@@ -231,42 +256,72 @@ def update_project_status(
         )
 
     next_status = ProjectStatus(payload.status)
-    if next_status == ProjectStatus.open:
-        team = db.scalar(select(Team).where(Team.project_id == project_id))
-        member_count = (
-            db.scalar(
-                select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
+    allowed_transitions = {
+        ProjectStatus.open: {ProjectStatus.recruitment_closed},
+        ProjectStatus.recruitment_closed: {ProjectStatus.open, ProjectStatus.in_progress},
+        ProjectStatus.in_progress: set(),
+    }
+    if next_status not in allowed_transitions.get(project.status, set()):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Недопустимый переход статуса проекта",
+        )
+
+    team = db.scalar(select(Team).where(Team.project_id == project_id))
+    member_count = (
+        db.scalar(
+            select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
+        )
+        if team is not None
+        else 0
+    ) or 0
+    if next_status == ProjectStatus.open and member_count >= project.participant_limit:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Нельзя открыть набор: команда уже заполнена",
+        )
+    if next_status == ProjectStatus.in_progress and member_count == 0:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Нельзя начать проект без участников",
+        )
+    if next_status == ProjectStatus.in_progress:
+        pending_count = db.scalar(
+            select(func.count(Application.id)).where(
+                Application.project_id == project_id,
+                Application.status == ApplicationStatus.pending,
             )
-            if team is not None
-            else 0
         ) or 0
-        if member_count >= project.participant_limit:
+        if pending_count:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                "Нельзя открыть набор: команда уже заполнена",
+                "Сначала обработайте все ожидающие отклики",
             )
-    elif project.status == ProjectStatus.open:
-        closed_applications = list(
+    if next_status == ProjectStatus.in_progress and team is not None:
+        started_users = list(
             db.scalars(
-                _admin_application_query().where(
-                    Application.project_id == project_id,
-                    Application.status == ApplicationStatus.pending,
-                )
+                select(User)
+                .join(TeamMember, TeamMember.user_id == User.id)
+                .where(TeamMember.team_id == team.id)
             )
         )
-        for application in closed_applications:
-            application.status = ApplicationStatus.rejected
-            application.decision_note = "Набор закрыт организатором."
     project.status = next_status
     db.commit()
 
-    for application in closed_applications:
+    for user in started_users:
+        buttons = [[{"type": "callback", "text": "Мои команды", "payload": encode("t")}]]
+        if project.team_chat_url:
+            buttons.insert(
+                0,
+                [{"type": "link", "text": "Открыть чат команды", "url": project.team_chat_url}],
+            )
         _send_user_message(
-            application.user,
+            user,
             text=(
-                f"Отклик на «{project.title}» закрыт: организатор завершил набор команды."
+                f"Проект «{project.title}» начался. "
+                "Теперь можно работать над задачей и отправлять результат на проверку."
             ),
-            buttons=[[{"type": "callback", "text": "Мои отклики", "payload": encode("a")}]],
+            buttons=buttons,
         )
     return db.scalar(
         select(Project)
@@ -370,7 +425,7 @@ def update_application_status(
     if (
         previous_status == ApplicationStatus.pending
         and next_status == ApplicationStatus.accepted
-        and project.status != ProjectStatus.open
+        and project.status not in {ProjectStatus.open, ProjectStatus.recruitment_closed}
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, "Набор в проект закрыт")
     if next_status == ApplicationStatus.rejected and not payload.note:
@@ -380,6 +435,7 @@ def update_application_status(
         )
     application.status = next_status
     application.decision_note = payload.note
+    application.decided_at = datetime.now(timezone.utc)
 
     if application.status == ApplicationStatus.accepted:
         if previous_status == ApplicationStatus.pending:
@@ -470,6 +526,7 @@ def update_application_status(
         for other_application in other_applications:
             other_application.status = ApplicationStatus.rejected
             other_application.decision_note = "Вы приняты на другую роль этого проекта."
+            other_application.decided_at = datetime.now(timezone.utc)
             automatic_notifications.append(
                 (other_application.user, f"Другой отклик на «{project.title}» закрыт: ты принят на выбранную роль.")
             )
@@ -498,6 +555,7 @@ def update_application_status(
                 other_application.decision_note = (
                     f"Достигнут лимит: {MAX_ACTIVE_PROJECTS} активных проекта."
                 )
+                other_application.decided_at = datetime.now(timezone.utc)
                 automatic_notifications.append(
                     (
                         other_application.user,
@@ -509,7 +567,7 @@ def update_application_status(
             select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
         ) or 0
         if member_count >= project.participant_limit:
-            project.status = ProjectStatus.in_progress
+            project.status = ProjectStatus.recruitment_closed
             remaining_applications = list(
                 db.scalars(
                     select(Application).where(
@@ -521,6 +579,7 @@ def update_application_status(
             for remaining in remaining_applications:
                 remaining.status = ApplicationStatus.rejected
                 remaining.decision_note = "Команда проекта уже сформирована."
+                remaining.decided_at = datetime.now(timezone.utc)
                 automatic_notifications.append(
                     (
                         remaining.user,
@@ -549,17 +608,6 @@ def update_application_status(
                     db.delete(existing_member)
                 else:
                     existing_member.role_title = other_accepted.project_role.title
-
-            db.flush()
-            member_count = db.scalar(
-                select(func.count(TeamMember.user_id)).where(TeamMember.team_id == team.id)
-            ) or 0
-            if (
-                project is not None
-                and project.status == ProjectStatus.in_progress
-                and member_count < project.participant_limit
-            ):
-                project.status = ProjectStatus.open
 
     db.commit()
 
@@ -633,13 +681,12 @@ def reset_application_decision(
             status.HTTP_409_CONFLICT,
             "Решения по завершённому проекту менять нельзя",
         )
-    if application.status == ApplicationStatus.rejected and project.status != ProjectStatus.open:
+    team = db.scalar(select(Team).where(Team.project_id == application.project_id))
+    if project.status == ProjectStatus.in_progress:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Сначала откройте набор в проект, затем верните отклик на рассмотрение",
+            "После начала проекта решение можно изменить только через запрос на выход",
         )
-
-    team = db.scalar(select(Team).where(Team.project_id == application.project_id))
     if team is not None and application.status in {
         ApplicationStatus.accepted,
         ApplicationStatus.leave_requested,
@@ -648,11 +695,9 @@ def reset_application_decision(
         if member is not None:
             db.delete(member)
             db.flush()
-        if project.status == ProjectStatus.in_progress:
-            project.status = ProjectStatus.open
-
     application.status = ApplicationStatus.pending
     application.decision_note = None
+    application.decided_at = None
     db.commit()
 
     _send_user_message(
@@ -710,8 +755,11 @@ def review_project_submission(
         .with_for_update()
         .options(selectinload(ProjectSubmission.user), selectinload(ProjectSubmission.project))
     )
-    if submission.project.status == ProjectStatus.completed:
-        raise HTTPException(status.HTTP_409_CONFLICT, "В завершённом проекте сдачи заблокированы")
+    if submission.project.status != ProjectStatus.in_progress:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Проверка доступна только после запуска проекта",
+        )
     if submission.status != ProjectSubmissionStatus.submitted:
         raise HTTPException(status.HTTP_409_CONFLICT, "Эта сдача сейчас не ожидает проверки")
     next_status = ProjectSubmissionStatus(payload.status)
@@ -820,6 +868,11 @@ def finalize_project(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Проект не найден")
     if project.status == ProjectStatus.completed:
         raise HTTPException(status.HTTP_409_CONFLICT, "Проект уже завершён")
+    if project.status != ProjectStatus.in_progress:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Сначала закройте набор и запустите проект",
+        )
 
     pending_leave_requests = db.scalar(
         select(func.count(Application.id)).where(
@@ -847,6 +900,7 @@ def finalize_project(
     for application in closed_applications:
         application.status = ApplicationStatus.rejected
         application.decision_note = "Проект завершён, набор закрыт."
+        application.decided_at = datetime.now(timezone.utc)
 
     user_ids = [item.user_id for item in payload.confirmations]
     if len(user_ids) != len(set(user_ids)):
