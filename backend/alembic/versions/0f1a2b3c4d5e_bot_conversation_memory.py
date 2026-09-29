@@ -1,7 +1,7 @@
 """add bounded MAX bot conversation memory
 
 Revision ID: 0f1a2b3c4d5e
-Revises: fa1b2c3d4e5f
+Revises: ab2c3d4e5f60
 """
 
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ from alembic import op
 
 
 revision: str = "0f1a2b3c4d5e"
-down_revision: Union[str, None] = "fa1b2c3d4e5f"
+down_revision: Union[str, None] = "ab2c3d4e5f60"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
